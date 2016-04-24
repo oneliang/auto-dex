@@ -1,0 +1,60 @@
+apply plugin:'java'
+apply plugin:'eclipse'
+apply plugin:'maven-publish'
+
+group = 'com.oneliang'
+version = '1.0'
+
+[compileJava, compileTestJava, javadoc]*.options*.encoding = 'UTF-8'
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+        }
+        //resources {
+        //    srcDir 'src'
+        //}
+    }
+    test {
+        java{
+            srcDir 'src/test/java'
+        }
+    }
+}
+
+repositories {
+    mavenLocal()
+    maven {
+    	url 'http://repo1.maven.org/maven2' 
+    }
+}
+
+dependencies {
+	compile 'com.oneliang:common-util:1.0'
+	compile 'com.oneliang:third-party-lib:1.0'
+	compile 'com.oneliang:third-party-util:1.0'
+}
+
+task sourceJar(type: Jar) {
+    from sourceSets.main.allJava
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+			groupId = group
+			artifactId = project.getName()
+			version = version
+			artifact sourceJar {
+                classifier "sources"
+            }
+        }
+    }
+    repositories {
+        maven {
+            //url "$buildDir/repo" // change to point to your repo, e.g. http://my.org/repo
+        }
+    }
+}
