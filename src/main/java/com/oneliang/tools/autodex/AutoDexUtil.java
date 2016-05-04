@@ -265,34 +265,34 @@ public final class AutoDexUtil {
 	 * auto dex
 	 * @param allClassesJar
 	 * @param androidManifestFullFilename
-	 * @param isMultiDexLoadInAttachBaseContext
+	 * @param attachBaseContext
 	 * @param mainDexOtherClassList
 	 * @param resourceDirectoryList
 	 * @param outputDirectory
-	 * @param isDebug
+	 * @param debug
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean isMultiDexLoadInAttachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, boolean isDebug) {
-		autoDex(allClassesJar, androidManifestFullFilename, isMultiDexLoadInAttachBaseContext, mainDexOtherClassList, resourceDirectoryList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, isDebug);
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, boolean debug) {
+		autoDex(allClassesJar, androidManifestFullFilename, attachBaseContext, mainDexOtherClassList, resourceDirectoryList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug);
 	}
 
 	/**
 	 * auto dex
 	 * @param allClassesJar
 	 * @param androidManifestFullFilename
-	 * @param isMultiDexLoadInAttachBaseContext
+	 * @param attachBaseContext
 	 * @param mainDexOtherClassList
 	 * @param resourceDirectoryList
 	 * @param outputDirectory
 	 * @param fieldLimit
 	 * @param methodLimit
 	 * @param linearAllocLimit
-	 * @param isDebug
+	 * @param debug
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean isMultiDexLoadInAttachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean isDebug) {
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug) {
 		outputDirectory=new File(outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long begin=System.currentTimeMillis();
-		List<String> classNameList=AutoDexUtil.findMainDexClassList(androidManifestFullFilename,isMultiDexLoadInAttachBaseContext);
+		List<String> classNameList=AutoDexUtil.findMainDexClassList(androidManifestFullFilename,attachBaseContext);
 		if(classNameList!=null){
 			if(mainDexOtherClassList!=null){
 				classNameList.addAll(mainDexOtherClassList);
@@ -364,7 +364,7 @@ public final class AutoDexUtil {
 			System.out.println("Auto dex cost:"+(System.currentTimeMillis()-begin));
 			try{
 				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
-				final Map<Integer,List<String>> subDexListMap=splitAndDx(allClassesJar, splitAndDxTempDirectory, dexIdClassNameMap, isDebug);
+				final Map<Integer,List<String>> subDexListMap=splitAndDx(allClassesJar, splitAndDxTempDirectory, dexIdClassNameMap, debug);
 				//concurrent merge dex
 				begin=System.currentTimeMillis();
 				final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
