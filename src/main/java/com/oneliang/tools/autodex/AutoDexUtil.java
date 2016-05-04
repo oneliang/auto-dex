@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,6 +16,7 @@ import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -35,6 +35,7 @@ import com.oneliang.Constant;
 import com.oneliang.thirdparty.asm.util.AsmUtil;
 import com.oneliang.thirdparty.asm.util.AsmUtil.FieldProcessor;
 import com.oneliang.thirdparty.asm.util.ClassDescription;
+import com.oneliang.tools.dex.DexUtil;
 import com.oneliang.tools.linearalloc.AllocClassVisitor.MethodReference;
 import com.oneliang.tools.linearalloc.LinearAllocUtil;
 import com.oneliang.tools.linearalloc.LinearAllocUtil.AllocStat;
@@ -47,6 +48,9 @@ public final class AutoDexUtil {
 	public static final int DEFAULT_FIELD_LIMIT=0xFFD0;//dex field must less than 65536,but field stat always less then in
 	public static final int DEFAULT_METHOD_LIMIT=0xFFFF;//dex must less than 65536,55000 is more safer then 65535
 	public static final int DEFAULT_LINEAR_ALLOC_LIMIT=Integer.MAX_VALUE;
+	private static final String CLASSES="classes";
+	private static final String DEX="dex";
+	private static final String AUTO_DEX_DEX_CLASSES_PREFIX="dexClasses";
 
 	/**
 	 * find main dex class list
@@ -265,9 +269,10 @@ public final class AutoDexUtil {
 	 * @param mainDexOtherClassList
 	 * @param resourceDirectoryList
 	 * @param outputDirectory
+	 * @param isDebug
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean isMultiDexLoadInAttachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory) {
-		autoDex(allClassesJar, androidManifestFullFilename, isMultiDexLoadInAttachBaseContext, mainDexOtherClassList, resourceDirectoryList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT);
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean isMultiDexLoadInAttachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, boolean isDebug) {
+		autoDex(allClassesJar, androidManifestFullFilename, isMultiDexLoadInAttachBaseContext, mainDexOtherClassList, resourceDirectoryList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, isDebug);
 	}
 
 	/**
@@ -281,8 +286,11 @@ public final class AutoDexUtil {
 	 * @param fieldLimit
 	 * @param methodLimit
 	 * @param linearAllocLimit
+	 * @param isDebug
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean isMultiDexLoadInAttachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit) {
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean isMultiDexLoadInAttachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean isDebug) {
+		outputDirectory=new File(outputDirectory).getAbsolutePath();
+		FileUtil.createDirectory(outputDirectory);
 		long begin=System.currentTimeMillis();
 		List<String> classNameList=AutoDexUtil.findMainDexClassList(androidManifestFullFilename,isMultiDexLoadInAttachBaseContext);
 		if(classNameList!=null){
@@ -353,65 +361,98 @@ public final class AutoDexUtil {
 					}
 				}
 			});
-			ZipFile zipFile = null;
-			try{
-				zipFile=new ZipFile(allClassesJar);
-				FileUtil.createDirectory(outputDirectory);
-				Iterator<Entry<Integer, Map<String, String>>> iterator=dexIdClassNameMap.entrySet().iterator();
-				while(iterator.hasNext()){
-					Entry<Integer, Map<String, String>> entry=iterator.next();
-					int dexId=entry.getKey();
-					final Set<String> classNameSet=entry.getValue().keySet();
-					String classesJar=null;
-					String classNameTxt=null;
-					OutputStream classNameTxtOutputStream=null;
-					try{
-						classNameTxt=outputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.TXT;
-						FileUtil.createFile(classNameTxt);
-						Properties classNameProperties=new Properties();
-						classesJar=outputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.JAR;
-						classesJar=new File(classesJar).getAbsolutePath();
-						FileUtil.createFile(classesJar);
-						ZipOutputStream dexJarOutputStream=new ZipOutputStream(new FileOutputStream(classesJar));
-						for(String className:classNameSet){
-							ZipEntry zipEntry=zipFile.getEntry(className);
-							InputStream inputStream=zipFile.getInputStream(zipEntry);
-							ZipEntry newZipEntry=new ZipEntry(zipEntry.getName());
-							FileUtil.addZipEntry(dexJarOutputStream, newZipEntry, inputStream);
-							classNameProperties.put(className, classesJar);
-						}
-						if(dexJarOutputStream!=null){
-							dexJarOutputStream.flush();
-							dexJarOutputStream.close();
-						}
-						classNameTxtOutputStream=new FileOutputStream(classNameTxt);
-						classNameProperties.store(classNameTxtOutputStream, null);
-					}catch (Exception e) {
-						throw new AutoDexUtilException(classesJar,e);
-					}finally{
-						if(classNameTxtOutputStream!=null){
-							try {
-								classNameTxtOutputStream.flush();
-								classNameTxtOutputStream.close();
-							} catch (Exception e) {
-								throw new AutoDexUtilException(classNameTxt,e);
-							}
-						}
-					}
-				}
-			}catch(Exception e){
-				throw new AutoDexUtilException(e);
-			}finally{
-				if(zipFile!=null){
-					try {
-						zipFile.close();
-					} catch (Exception e) {
-						throw new AutoDexUtilException(e);
-					}
-				}
-			}
-			
 			System.out.println("Auto dex cost:"+(System.currentTimeMillis()-begin));
+			try{
+				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
+				final Map<Integer,List<String>> subDexListMap=splitAndDx(allClassesJar, splitAndDxTempDirectory, dexIdClassNameMap, isDebug);
+				//concurrent merge dex
+				begin=System.currentTimeMillis();
+				final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
+				Set<Integer> dexIdSet=subDexListMap.keySet();
+				for(final int dexId:dexIdSet){
+					String dexOutputDirectory=outputDirectory;
+					String dexFullFilename=null;
+					if(dexId==0){
+						dexFullFilename=dexOutputDirectory+"/"+CLASSES+Constant.Symbol.DOT+DEX;
+					}else{
+						dexFullFilename=dexOutputDirectory+"/"+CLASSES+(dexId+1)+Constant.Symbol.DOT+DEX;
+					}
+					final String finalDexFullFilename=dexFullFilename;
+					Thread thread=new Thread(new Runnable(){
+						public void run() {
+							try{
+								DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
+							}catch(Exception e){
+								System.err.println(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage());
+							}
+							countDownLatch.countDown();
+						}
+					});
+					thread.start();
+				}
+				countDownLatch.await();
+				System.out.println("Merge dex cost:"+(System.currentTimeMillis()-begin));
+				FileUtil.deleteAllFile(splitAndDxTempDirectory);
+			}catch(Exception e){
+				throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
+			}
+//			ZipFile zipFile = null;
+//			try{
+//				zipFile=new ZipFile(allClassesJar);
+//				FileUtil.createDirectory(outputDirectory);
+//				Iterator<Entry<Integer, Map<String, String>>> iterator=dexIdClassNameMap.entrySet().iterator();
+//				while(iterator.hasNext()){
+//					Entry<Integer, Map<String, String>> entry=iterator.next();
+//					int dexId=entry.getKey();
+//					final Set<String> classNameSet=entry.getValue().keySet();
+//					String classesJar=null;
+//					String classNameTxt=null;
+//					OutputStream classNameTxtOutputStream=null;
+//					try{
+//						classNameTxt=outputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.TXT;
+//						FileUtil.createFile(classNameTxt);
+//						Properties classNameProperties=new Properties();
+//						classesJar=outputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.JAR;
+//						classesJar=new File(classesJar).getAbsolutePath();
+//						FileUtil.createFile(classesJar);
+//						ZipOutputStream dexJarOutputStream=new ZipOutputStream(new FileOutputStream(classesJar));
+//						for(String className:classNameSet){
+//							ZipEntry zipEntry=zipFile.getEntry(className);
+//							InputStream inputStream=zipFile.getInputStream(zipEntry);
+//							ZipEntry newZipEntry=new ZipEntry(zipEntry.getName());
+//							FileUtil.addZipEntry(dexJarOutputStream, newZipEntry, inputStream);
+//							classNameProperties.put(className, classesJar);
+//						}
+//						if(dexJarOutputStream!=null){
+//							dexJarOutputStream.flush();
+//							dexJarOutputStream.close();
+//						}
+//						classNameTxtOutputStream=new FileOutputStream(classNameTxt);
+//						classNameProperties.store(classNameTxtOutputStream, null);
+//					}catch (Exception e) {
+//						throw new AutoDexUtilException(classesJar,e);
+//					}finally{
+//						if(classNameTxtOutputStream!=null){
+//							try {
+//								classNameTxtOutputStream.flush();
+//								classNameTxtOutputStream.close();
+//							} catch (Exception e) {
+//								throw new AutoDexUtilException(classNameTxt,e);
+//							}
+//						}
+//					}
+//				}
+//			}catch(Exception e){
+//				throw new AutoDexUtilException(e);
+//			}finally{
+//				if(zipFile!=null){
+//					try {
+//						zipFile.close();
+//					} catch (Exception e) {
+//						throw new AutoDexUtilException(e);
+//					}
+//				}
+//			}
 		}
 	}
 
@@ -576,6 +617,125 @@ public final class AutoDexUtil {
 			throw new AutoDexUtilException(e);
 		}
 		return dexIdClassNameMap;
+	}
+
+	/**
+	 * split and dx
+	 * @param allClassesJar
+	 * @param outputDirectory
+	 * @param dexIdClassNameMap
+	 * @param apkDebug
+	 */
+	public static Map<Integer,List<String>> splitAndDx(String allClassesJar,final String outputDirectory,final Map<Integer,Map<String,String>> dexIdClassNameMap,final boolean apkDebug){
+		final Map<Integer,List<String>> subDexListMap=new HashMap<Integer,List<String>>();
+		long begin=System.currentTimeMillis();
+		try{
+			if(FileUtil.isExist(allClassesJar)){
+				final String parentOutputDirectory=new File(outputDirectory).getParent();
+				final ZipFile zipFile=new ZipFile(allClassesJar);
+				try{
+					//copy all classes
+					final CountDownLatch splitJarCountDownLatch=new CountDownLatch(dexIdClassNameMap.size());
+					Set<Integer> dexIdSet=dexIdClassNameMap.keySet();
+					final int fileCountPerJar=500;
+					//concurrent split jar
+					for(final int dexId:dexIdSet){
+						final Set<String> classNameSet=dexIdClassNameMap.get(dexId).keySet();
+						Thread thread=new Thread(new Runnable(){
+							public void run() {
+								int total=classNameSet.size();
+								int subDexCount=0,count=0;
+								ZipOutputStream dexJarOutputStream=null;
+								String classesJar=null;
+								String classNameTxt=null;
+								String jarSubDexNameTxt=null;
+								OutputStream classNameTxtOutputStream=null;
+								OutputStream jarSubDexNameTxtOutputStream=null;
+								try{
+									classNameTxt=parentOutputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.TXT;
+									jarSubDexNameTxt=outputDirectory+"/"+dexId+Constant.File.JAR+Constant.Symbol.DOT+Constant.File.TXT;
+									Properties classNameProperties=new Properties();
+									Properties jarSubDexNameProperties=new Properties();
+									for(String className:classNameSet){
+										if(count%fileCountPerJar==0){
+											classesJar=outputDirectory+"/"+AUTO_DEX_DEX_CLASSES_PREFIX+dexId+Constant.Symbol.UNDERLINE+subDexCount+Constant.Symbol.DOT+Constant.File.JAR;
+											classesJar=new File(classesJar).getAbsolutePath();
+											FileUtil.createFile(classesJar);
+											dexJarOutputStream=new ZipOutputStream(new FileOutputStream(classesJar));
+										}
+										ZipEntry zipEntry=zipFile.getEntry(className);
+										FileUtil.addZipEntry(dexJarOutputStream, zipEntry, zipFile.getInputStream(zipEntry));
+										count++;
+										classNameProperties.put(className, classesJar);
+
+										if(count%fileCountPerJar==0||count==total){
+											if(dexJarOutputStream!=null){
+												dexJarOutputStream.flush();
+												dexJarOutputStream.close();
+											}
+											String classesDex=outputDirectory+"/"+AUTO_DEX_DEX_CLASSES_PREFIX+dexId+Constant.Symbol.UNDERLINE+subDexCount+Constant.Symbol.DOT+Constant.File.DEX;
+											classesDex=new File(classesDex).getAbsolutePath();
+											if(classesJar!=null){
+												DexUtil.androidDx(classesDex, Arrays.asList(classesJar), apkDebug);
+												if(subDexListMap.containsKey(dexId)){
+													subDexListMap.get(dexId).add(classesDex);
+												}else{
+													List<String> subDexList=new ArrayList<String>();
+													subDexList.add(classesDex);
+													subDexListMap.put(dexId, subDexList);
+												}
+											}
+											jarSubDexNameProperties.put(classesJar, classesDex);
+											subDexCount++;
+										}
+									}
+									classNameTxtOutputStream=new FileOutputStream(classNameTxt);
+									classNameProperties.store(classNameTxtOutputStream, null);
+									jarSubDexNameTxtOutputStream=new FileOutputStream(jarSubDexNameTxt);
+									jarSubDexNameProperties.store(jarSubDexNameTxtOutputStream, null);
+								}catch (Exception e) {
+									throw new AutoDexUtilException(classesJar,e);
+								}finally{
+									if(dexJarOutputStream!=null){
+										try {
+											dexJarOutputStream.flush();
+											dexJarOutputStream.close();
+										} catch (Exception e) {
+											throw new AutoDexUtilException(classesJar,e);
+										}
+									}
+									if(classNameTxtOutputStream!=null){
+										try {
+											classNameTxtOutputStream.flush();
+											classNameTxtOutputStream.close();
+										} catch (Exception e) {
+											throw new AutoDexUtilException(classNameTxt,e);
+										}
+									}
+									if(jarSubDexNameTxtOutputStream!=null){
+										try {
+											jarSubDexNameTxtOutputStream.flush();
+											jarSubDexNameTxtOutputStream.close();
+										} catch (Exception e) {
+											throw new AutoDexUtilException(jarSubDexNameTxt,e);
+										}
+									}
+								}
+								splitJarCountDownLatch.countDown();
+							}
+						});
+						thread.start();
+					}
+					splitJarCountDownLatch.await();
+					System.out.println("Split multi jar and dx,file count per jar:"+fileCountPerJar+",cost:"+(System.currentTimeMillis()-begin));
+				}finally{
+					zipFile.close();
+				}
+			}
+		}catch (Exception e) {
+			throw new AutoDexUtilException(e);
+		}
+		return subDexListMap;
 	}
 
 	/**

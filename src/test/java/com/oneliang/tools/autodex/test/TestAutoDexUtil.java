@@ -4,18 +4,21 @@ import java.util.Arrays;
 
 import com.oneliang.Constant;
 import com.oneliang.tools.autodex.AutoDexUtil;
+import com.oneliang.util.file.FileUtil;
 
 public class TestAutoDexUtil {
 
 	private static final String allClassesJar="/D:/allClasses.jar";
-	private static final String androidManifestFullFilename="/D:/AndroidManifest.xml";
+	private static final String androidManifestFullFilename="/D:/wechat/app/public/AndroidManifest.xml";
 	private static final boolean isMultiDexLoadInAttachBaseContext=true;
-	private static final String mainDexOtherClasses="com.sun.tools.javac.Main";
+	private static final String mainDexOtherClasses="com.tencent.mm.app.MMApplication";
 	private static final String resourceDirectorys="/D:/a,/D:/b";
 	private static final String outputDirectory="/D:/split";
+	private static final boolean isDebug=false;
 
 	public static void main(String[] args) throws Exception{
-		AutoDexUtil.autoDex(allClassesJar, androidManifestFullFilename, isMultiDexLoadInAttachBaseContext, Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA)), Arrays.asList(resourceDirectorys.split(Constant.Symbol.COMMA)), outputDirectory);
+		FileUtil.deleteAllFile(outputDirectory);
+		AutoDexUtil.autoDex(allClassesJar, androidManifestFullFilename, isMultiDexLoadInAttachBaseContext, Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA)), Arrays.asList(resourceDirectorys.split(Constant.Symbol.COMMA)), outputDirectory, isDebug);
 	}
 	
 }
