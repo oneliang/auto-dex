@@ -265,14 +265,12 @@ public final class AutoDexUtil {
 	 * auto dex
 	 * @param allClassesJar
 	 * @param androidManifestFullFilename
-	 * @param attachBaseContext
 	 * @param mainDexOtherClassList
-	 * @param resourceDirectoryList
 	 * @param outputDirectory
 	 * @param debug
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, boolean debug) {
-		autoDex(allClassesJar, androidManifestFullFilename, attachBaseContext, mainDexOtherClassList, resourceDirectoryList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug);
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, List<String> mainDexOtherClassList, String outputDirectory, boolean debug) {
+		autoDex(allClassesJar, androidManifestFullFilename, debug, mainDexOtherClassList, outputDirectory, debug?(DEFAULT_FIELD_LIMIT-0x200):DEFAULT_FIELD_LIMIT, debug?(DEFAULT_METHOD_LIMIT-0x200):DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug);
 	}
 
 	/**
@@ -281,18 +279,20 @@ public final class AutoDexUtil {
 	 * @param androidManifestFullFilename
 	 * @param attachBaseContext
 	 * @param mainDexOtherClassList
-	 * @param resourceDirectoryList
 	 * @param outputDirectory
 	 * @param fieldLimit
 	 * @param methodLimit
 	 * @param linearAllocLimit
 	 * @param debug
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, List<String> resourceDirectoryList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug) {
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug) {
 		outputDirectory=new File(outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long begin=System.currentTimeMillis();
-		List<String> classNameList=AutoDexUtil.findMainDexClassList(androidManifestFullFilename,attachBaseContext);
+		List<String> classNameList=new ArrayList<String>();
+		if(!attachBaseContext){
+			classNameList.addAll(AutoDexUtil.findMainDexClassList(androidManifestFullFilename,attachBaseContext));
+		}
 		if(classNameList!=null){
 			if(mainDexOtherClassList!=null){
 				classNameList.addAll(mainDexOtherClassList);
@@ -308,59 +308,7 @@ public final class AutoDexUtil {
 				mainDexRootClassNameList.add(className);
 			}
 			//find all layout xml
-			final Map<String,String> nodeNameMap=new HashMap<String,String>();
-			final Map<String,File> allLayoutXmlFileMap=findAllLayoutXmlFileMap(resourceDirectoryList);
-			final Map<Integer,Map<String,String>> dexIdClassNameMap=AutoDexUtil.autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, new FieldProcessor(){
-				public void process(String referenceFieldNameWithoutType, ClassDescription classDescription) {
-					final String regex="^[\\w/]+R\\$layout\\.([\\w]+)$";
-					if(StringUtil.isMatchRegex(referenceFieldNameWithoutType, regex)){
-						List<String> regexGroupList=StringUtil.parseRegexGroup(referenceFieldNameWithoutType, regex);
-						if(regexGroupList!=null&&!regexGroupList.isEmpty()){
-							String filename=regexGroupList.get(0)+Constant.Symbol.DOT+Constant.File.XML;
-							if(allLayoutXmlFileMap.containsKey(filename)){
-								File layoutXmlFile=allLayoutXmlFileMap.get(filename);
-								Queue<String> layoutXmlQueue=new ConcurrentLinkedQueue<String>();
-								layoutXmlQueue.add(layoutXmlFile.getAbsolutePath());
-								while(!layoutXmlQueue.isEmpty()){
-									String fullFilename=layoutXmlQueue.poll();;
-									Document document=JavaXmlUtil.parse(fullFilename);
-									XPathFactory xPathFactory=XPathFactory.newInstance();
-									XPath xPath=xPathFactory.newXPath();
-									try{
-										NodeList nodeList=(NodeList)xPath.evaluate("//"+Constant.Symbol.WILDCARD, document, XPathConstants.NODESET);
-										if(nodeList!=null){
-											for(int i=0;i<nodeList.getLength();i++){
-												Node node=nodeList.item(i);
-												String nodeName=node.getNodeName();
-												if(StringUtil.isMatchPattern(nodeName, packageName+Constant.Symbol.WILDCARD)){
-													if(!nodeNameMap.containsKey(nodeName)){
-														nodeNameMap.put(nodeName, nodeName);
-														String className=nodeName.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT)+Constant.Symbol.DOT+Constant.File.CLASS;
-														if(!classDescription.dependClassNameMap.containsKey(className)){
-															classDescription.dependClassNameList.add(className);
-															classDescription.dependClassNameMap.put(className,className);
-														}
-//															System.out.println("in layout class name:"+className);
-													}
-												}else if(StringUtil.isMatchPattern(nodeName, "include")){
-													Node layoutAttribute=node.getAttributes().getNamedItem("layout");
-													if(layoutAttribute!=null){
-														String includeLayoutXml=layoutAttribute.getTextContent().replace("@layout/", StringUtil.BLANK)+Constant.Symbol.DOT+Constant.File.XML;
-														layoutXmlQueue.add(allLayoutXmlFileMap.get(includeLayoutXml).getAbsolutePath());
-//															System.out.println("\t"+layoutXmlFile.getAbsolutePath()+",include:"+includeLayoutXml);
-													}
-												}
-											}
-										}
-									}catch (Exception e) {
-										e.printStackTrace();
-									}
-								}
-							}
-						}
-					}
-				}
-			});
+			final Map<Integer,Map<String,String>> dexIdClassNameMap=AutoDexUtil.autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, null);
 			System.out.println("Auto dex cost:"+(System.currentTimeMillis()-begin));
 			try{
 				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
@@ -429,6 +377,8 @@ public final class AutoDexUtil {
 //						}
 //						classNameTxtOutputStream=new FileOutputStream(classNameTxt);
 //						classNameProperties.store(classNameTxtOutputStream, null);
+//						String classesDex=outputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.DEX;
+//						DexUtil.androidDx(classesDex, Arrays.asList(classesJar), debug);
 //					}catch (Exception e) {
 //						throw new AutoDexUtilException(classesJar,e);
 //					}finally{
@@ -463,10 +413,11 @@ public final class AutoDexUtil {
 	 * @param fieldLimit
 	 * @param methodLimit
 	 * @param linearAllocLimit
+	 * @param debug
 	 * @param fieldProcessor
 	 * @return Map<Integer, Map<String,String>>, <dexId,classNameMap>
 	 */
-	public static Map<Integer,Map<String,String>> autoDex(String allClassesJar,List<String> mainDexRootClassNameList, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final FieldProcessor fieldProcessor){
+	public static Map<Integer,Map<String,String>> autoDex(String allClassesJar,List<String> mainDexRootClassNameList, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final FieldProcessor fieldProcessor){
 		final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 		try{
 			if(FileUtil.isExist(allClassesJar)){
@@ -497,7 +448,7 @@ public final class AutoDexUtil {
 						while(!dexQueue.isEmpty()){
 							Integer dexId=dexQueue.poll();
 							List<String> rootClassNameList=dexClassRootListMap.get(dexId);
-							Map<String,String> dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameList, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap);
+							Map<String,String> dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameList, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !debug);
 							//先算这一垞有多少个方法数和linear
 							AllocStat thisTimeAllocStat=new AllocStat();
 							thisTimeAllocStat.setMethodReferenceMap(new HashMap<String,String>());
@@ -761,29 +712,6 @@ public final class AutoDexUtil {
 			}
 		}
 		return packageName;
-	}
-
-	/**
-	 * find all layout xml file map
-	 * @param resourceDirectoryList
-	 * @return Map<String, File>
-	 */
-	private static Map<String, File> findAllLayoutXmlFileMap(List<String> resourceDirectoryList) {
-		Map<String, File> allLayoutXmlFileMap = new HashMap<String, File>();
-		if (resourceDirectoryList != null) {
-			for (String resourceDirectory : resourceDirectoryList) {
-				List<String> layoutXmlFullFilenameList = FileUtil.findMatchFile(resourceDirectory, Constant.Symbol.DOT + Constant.File.XML);
-				if (layoutXmlFullFilenameList != null && !layoutXmlFullFilenameList.isEmpty()) {
-					for (String layoutXmlFullFilename : layoutXmlFullFilenameList) {
-						File layoutXmlFile = new File(layoutXmlFullFilename);
-						String filename = layoutXmlFile.getName();
-						// filename=filename.substring(0,filename.lastIndexOf(Constant.Symbol.DOT));
-						allLayoutXmlFileMap.put(filename, layoutXmlFile);
-					}
-				}
-			}
-		}
-		return allLayoutXmlFileMap;
 	}
 
 	private static class AutoDexUtilException extends RuntimeException{
