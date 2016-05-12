@@ -42,8 +42,12 @@ import com.oneliang.tools.linearalloc.LinearAllocUtil.AllocStat;
 import com.oneliang.util.common.JavaXmlUtil;
 import com.oneliang.util.common.StringUtil;
 import com.oneliang.util.file.FileUtil;
+import com.oneliang.util.logging.Logger;
+import com.oneliang.util.logging.LoggerManager;
 
 public final class AutoDexUtil {
+
+	private static final Logger logger = LoggerManager.getLogger(AutoDexUtil.class);
 
 	public static final int DEFAULT_FIELD_LIMIT=0xFFD0;//dex field must less than 65536,but field stat always less then in
 	public static final int DEFAULT_METHOD_LIMIT=0xFFFF;//dex must less than 65536,55000 is more safer then 65535
@@ -95,7 +99,7 @@ public final class AutoDexUtil {
 				Node nameNode=node.getAttributes().getNamedItem("android:name");
 				if(nameNode!=null){
 					applicationName=nameNode.getTextContent();
-//					System.out.println(applicationName);
+					logger.verbose(applicationName);
 				}
 			}
 		}
@@ -120,14 +124,14 @@ public final class AutoDexUtil {
 				if(activityExportedNode!=null){
 					boolean exported=Boolean.parseBoolean(activityExportedNode.getTextContent());
 					if(exported){
-//						System.out.println(activityName);
+						logger.verbose(activityName);
 						mainActivityList.add(activityName);
 					}
 				}else{
 					Element element=(Element)node;
 					NodeList actionNodeList=element.getElementsByTagName("action");
 					if(actionNodeList.getLength()>0){
-//						System.out.println(activityName);
+						logger.verbose(activityName);
 //						mainActivityList.add(activityName);
 					}
 					for(int j=0;j<actionNodeList.getLength();j++){
@@ -135,7 +139,7 @@ public final class AutoDexUtil {
 						if(activityActionNode!=null){
 							String activityActionName=activityActionNode.getTextContent();
 							if(activityActionName.equals("android.intent.action.MAIN")){
-//								System.out.println(activityName);
+								logger.verbose(activityName);
 								mainActivityList.add(activityName);
 							}
 						}
@@ -165,8 +169,9 @@ public final class AutoDexUtil {
 //					if(providerExportedNode!=null){
 //						boolean exported=Boolean.parseBoolean(providerExportedNode.getTextContent());
 //						if(exported){
-//							System.out.println(providerName);
-							providerList.add(nameNode.getTextContent());
+							String providerName=nameNode.getTextContent();
+							logger.verbose(providerName);
+							providerList.add(providerName);
 //						}
 //					}
 				}
@@ -196,7 +201,7 @@ public final class AutoDexUtil {
 					if(receiverExportedNode!=null){
 						boolean exported=Boolean.parseBoolean(receiverExportedNode.getTextContent());
 						if(exported){
-//							System.out.println(receiverName);
+							logger.verbose(receiverName);
 							receiverList.add(receiverName);
 						}else{
 							needToCheckAgain=true;
@@ -208,7 +213,7 @@ public final class AutoDexUtil {
 						Element element=(Element)node;
 						NodeList actionNodeList=element.getElementsByTagName("action");
 						if(actionNodeList.getLength()>0){
-//							System.out.println(receiverName);
+							logger.verbose(receiverName);
 							receiverList.add(receiverName);
 						}
 					}
@@ -239,7 +244,7 @@ public final class AutoDexUtil {
 					if(serviceExportedNode!=null){
 						boolean exported=Boolean.parseBoolean(serviceExportedNode.getTextContent());
 						if(exported){
-//							System.out.println(serviceName);
+							logger.verbose(serviceName);
 							serviceList.add(serviceName);
 						}else{
 							needToCheckAgain=true;
@@ -251,7 +256,7 @@ public final class AutoDexUtil {
 						Element element=(Element)node;
 						NodeList actionNodeList=element.getElementsByTagName("action");
 						if(actionNodeList.getLength()>0){
-//							System.out.println(serviceName);
+							logger.verbose(serviceName);
 							serviceList.add(serviceName);
 						}
 					}
@@ -309,7 +314,7 @@ public final class AutoDexUtil {
 			}
 			//find all layout xml
 			final Map<Integer,Map<String,String>> dexIdClassNameMap=AutoDexUtil.autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, null);
-			System.out.println("Auto dex cost:"+(System.currentTimeMillis()-begin));
+			logger.info("Auto dex cost:"+(System.currentTimeMillis()-begin));
 			try{
 				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
 				final Map<Integer,List<String>> subDexListMap=splitAndDx(allClassesJar, splitAndDxTempDirectory, dexIdClassNameMap, debug);
@@ -331,7 +336,7 @@ public final class AutoDexUtil {
 							try{
 								DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
 							}catch(Exception e){
-								System.err.println(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage());
+								logger.error(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage(), e);
 							}
 							countDownLatch.countDown();
 						}
@@ -339,7 +344,7 @@ public final class AutoDexUtil {
 					thread.start();
 				}
 				countDownLatch.await();
-				System.out.println("Merge dex cost:"+(System.currentTimeMillis()-begin));
+				logger.info("Merge dex cost:"+(System.currentTimeMillis()-begin));
 				FileUtil.deleteAllFile(splitAndDxTempDirectory);
 			}catch(Exception e){
 				throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
@@ -425,14 +430,14 @@ public final class AutoDexUtil {
 				//all class description
 				Map<String,List<ClassDescription>> referencedClassDescriptionListMap=new HashMap<String,List<ClassDescription>>();
 				Map<String,ClassDescription> classDescriptionMap=AsmUtil.findClassDescriptionMapWithJar(allClassesJar,referencedClassDescriptionListMap, fieldProcessor);
-				System.out.println("\tclassDescriptionMap:"+classDescriptionMap.size()+",referencedClassDescriptionListMap:"+referencedClassDescriptionListMap.size());
+				logger.info("\tclassDescriptionMap:"+classDescriptionMap.size()+",referencedClassDescriptionListMap:"+referencedClassDescriptionListMap.size());
 				//all class map
 				Map<String,String> allClassNameMap=new HashMap<String,String>();
 				Set<String> classNameKeySet=classDescriptionMap.keySet();
 				for(String className:classNameKeySet){
 					allClassNameMap.put(className, className);
 				}
-				System.out.println("Find all class description cost:"+(System.currentTimeMillis()-begin));
+				logger.info("Find all class description cost:"+(System.currentTimeMillis()-begin));
 				//main dex
 				begin=System.currentTimeMillis();
 				final ZipFile zipFile=new ZipFile(allClassesJar);
@@ -552,12 +557,12 @@ public final class AutoDexUtil {
 								break;
 							}
 						}
-						System.out.println("Auto split dex cost:"+(System.currentTimeMillis()-begin));
-						System.out.println("\tremain classes:"+allClassNameMap.size());
+						logger.info("Auto split dex cost:"+(System.currentTimeMillis()-begin));
+						logger.info("\tremain classes:"+allClassNameMap.size());
 						Iterator<Entry<Integer,AllocStat>> iterator=dexAllocStatMap.entrySet().iterator();
 						while(iterator.hasNext()){
 							Entry<Integer,AllocStat> entry=iterator.next();
-							System.out.println("\tdexId:"+entry.getKey()+"\tlinearAlloc:"+entry.getValue().getTotalAlloc()+"\tfield:"+entry.getValue().getFieldReferenceMap().size()+"\tmethod:"+entry.getValue().getMethodReferenceMap().size());
+							logger.info("\tdexId:"+entry.getKey()+"\tlinearAlloc:"+entry.getValue().getTotalAlloc()+"\tfield:"+entry.getValue().getFieldReferenceMap().size()+"\tmethod:"+entry.getValue().getMethodReferenceMap().size());
 						}
 					}
 				}finally{
@@ -678,7 +683,7 @@ public final class AutoDexUtil {
 						thread.start();
 					}
 					splitJarCountDownLatch.await();
-					System.out.println("Split multi jar and dx,file count per jar:"+fileCountPerJar+",cost:"+(System.currentTimeMillis()-begin));
+					logger.info("Split multi jar and dx,file count per jar:"+fileCountPerJar+",cost:"+(System.currentTimeMillis()-begin));
 				}finally{
 					zipFile.close();
 				}
