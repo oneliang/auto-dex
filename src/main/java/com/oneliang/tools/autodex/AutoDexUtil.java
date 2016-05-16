@@ -296,7 +296,7 @@ public final class AutoDexUtil {
 		long begin=System.currentTimeMillis();
 		List<String> classNameList=new ArrayList<String>();
 		if(!attachBaseContext){
-			classNameList.addAll(AutoDexUtil.findMainDexClassList(androidManifestFullFilename,attachBaseContext));
+			classNameList.addAll(findMainDexClassList(androidManifestFullFilename,attachBaseContext));
 		}
 		if(classNameList!=null){
 			if(mainDexOtherClassList!=null){
@@ -313,7 +313,7 @@ public final class AutoDexUtil {
 				mainDexRootClassNameList.add(className);
 			}
 			//find all layout xml
-			final Map<Integer,Map<String,String>> dexIdClassNameMap=AutoDexUtil.autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, null);
+			final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, null);
 			logger.info("Auto dex cost:"+(System.currentTimeMillis()-begin));
 			try{
 				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
