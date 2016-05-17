@@ -18,22 +18,23 @@ import com.oneliang.util.logging.LoggerManager;
 
 public class TestAutoDexUtil {
 
-	private static final String allClassesJar="/D:/allClasses.jar";
+	private static final String allClassesJar="/D:/aop.jar";
 	private static final String androidManifestFullFilename="/D:/wechat_base/app/public/AndroidManifest.xml";
-	private static final String mainDexOtherClasses=".ui.NoRomSpaceDexUI,.svg.SVGPreload,.svg.SVGBuildConfig,.plugin.exdevice.jni.C2JavaExDevice,.svg.graphics.SVGCodeDrawable,com.tenpay.cert.CertUtil,.svg.WeChatSVGRenderC2Java,com.tencent.kingkong.database.SQLiteDoneException,.crash.CrashUploaderService,.app.MMApplicationWrapper,.app.WorkerProfile,.app.PusherProfile,.app.ToolsProfile,.app.SandBoxProfile,.app.ExDeviceProfile,.plugin.sandbox.SubCoreSandBox,.sdk.platformtools.CrashMonitorForJni,.jni.utils.UtilsJni,.plugin.accountsync.Plugin,.plugin.sandbox.Plugin,.ui.base.preference.PreferenceScreen,.lan_cs.Client,.lan_cs.Server,.svg.SVGResourceRegister,.jni.platformcomm.PlatformCommBridge";
+	private static final String mainDexOtherClasses="android.support.multidex.*,.algorithm.*,.app.*,.compatible.loader.*,.loader.stub.*,.sdk.crash.*,.sdk.platformtools.*,.sdk.storage.*";
 	private static final String outputDirectory="/D:/split";
-	private static final boolean debug=false;
+	private static final boolean debug=true;
+	private static final boolean autoByPackage=true;
 
 	public static void main(String[] args) throws Exception{
 		List<AbstractLogger> loggerList=new ArrayList<AbstractLogger>();
 		loggerList.add(new BaseLogger(Logger.Level.INFO));
 		loggerList.add(new FileLogger(Logger.Level.VERBOSE,new File("/D:/a.txt")));
-		Logger logger=new ComplexLogger(Logger.Level.ERROR, loggerList);
+		Logger logger=new ComplexLogger(Logger.Level.INFO, loggerList);
 		LoggerManager.registerLogger(AutoDexUtil.class, logger);
 		LoggerManager.registerLogger(AsmUtil.class, logger);
 //		System.setOut(new PrintStream(new FileOutputStream("/D:/mainDex.txt")));
 		FileUtil.deleteAllFile(outputDirectory);
-		AutoDexUtil.autoDex(allClassesJar, androidManifestFullFilename, Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA)), outputDirectory, debug);
+		AutoDexUtil.autoDex(allClassesJar, androidManifestFullFilename, Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA)), outputDirectory, debug, autoByPackage);
 	}
 	
 }

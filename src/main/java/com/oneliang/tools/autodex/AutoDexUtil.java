@@ -273,9 +273,10 @@ public final class AutoDexUtil {
 	 * @param mainDexOtherClassList
 	 * @param outputDirectory
 	 * @param debug
+	 * @param autoByPackage
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, List<String> mainDexOtherClassList, String outputDirectory, boolean debug) {
-		autoDex(allClassesJar, androidManifestFullFilename, debug, mainDexOtherClassList, outputDirectory, debug?(DEFAULT_FIELD_LIMIT-0x200):DEFAULT_FIELD_LIMIT, debug?(DEFAULT_METHOD_LIMIT-0x200):DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug);
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
+		autoDex(allClassesJar, androidManifestFullFilename, debug, mainDexOtherClassList, outputDirectory, debug?(DEFAULT_FIELD_LIMIT-0x200):DEFAULT_FIELD_LIMIT, debug?(DEFAULT_METHOD_LIMIT-0x200):DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
 	}
 
 	/**
@@ -289,8 +290,9 @@ public final class AutoDexUtil {
 	 * @param methodLimit
 	 * @param linearAllocLimit
 	 * @param debug
+	 * @param autoByPackage
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug) {
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final boolean autoByPackage) {
 		outputDirectory=new File(outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long begin=System.currentTimeMillis();
@@ -313,7 +315,7 @@ public final class AutoDexUtil {
 				mainDexRootClassNameList.add(className);
 			}
 			//find all layout xml
-			final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, null);
+			final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
 			logger.info("Auto dex cost:"+(System.currentTimeMillis()-begin));
 			try{
 				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
@@ -419,10 +421,11 @@ public final class AutoDexUtil {
 	 * @param methodLimit
 	 * @param linearAllocLimit
 	 * @param debug
+	 * @param autoByPackage
 	 * @param fieldProcessor
 	 * @return Map<Integer, Map<String,String>>, <dexId,classNameMap>
 	 */
-	public static Map<Integer,Map<String,String>> autoDex(String allClassesJar,List<String> mainDexRootClassNameList, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final FieldProcessor fieldProcessor){
+	public static Map<Integer,Map<String,String>> autoDex(String allClassesJar,List<String> mainDexRootClassNameList, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final boolean autoByPackage, final FieldProcessor fieldProcessor){
 		final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 		try{
 			if(FileUtil.isExist(allClassesJar)){
@@ -438,6 +441,10 @@ public final class AutoDexUtil {
 					allClassNameMap.put(className, className);
 				}
 				logger.info("Find all class description cost:"+(System.currentTimeMillis()-begin));
+				Map<String, List<String>> samePackageClassNameListMap=null;
+				if(autoByPackage){
+					samePackageClassNameListMap=findAllSamePackageClassNameListMap(classDescriptionMap);
+				}
 				//main dex
 				begin=System.currentTimeMillis();
 				final ZipFile zipFile=new ZipFile(allClassesJar);
@@ -453,7 +460,12 @@ public final class AutoDexUtil {
 						while(!dexQueue.isEmpty()){
 							Integer dexId=dexQueue.poll();
 							List<String> rootClassNameList=dexClassRootListMap.get(dexId);
-							Map<String,String> dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameList, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !debug);
+							Map<String,String> dependClassNameMap=null;
+							if(autoByPackage){
+								dependClassNameMap=findAllSamePackageClassNameMap(rootClassNameList, samePackageClassNameListMap);
+							}else{
+								dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameList, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap);
+							}
 							//先算这一垞有多少个方法数和linear
 							AllocStat thisTimeAllocStat=new AllocStat();
 							thisTimeAllocStat.setMethodReferenceMap(new HashMap<String,String>());
@@ -692,6 +704,54 @@ public final class AutoDexUtil {
 			throw new AutoDexUtilException(e);
 		}
 		return subDexListMap;
+	}
+
+	/**
+	 * find all same package class name list map
+	 * @param classDescriptionMap
+	 * @return Map<String,List<String>>
+	 */
+	private static Map<String,List<String>> findAllSamePackageClassNameListMap(Map<String,ClassDescription> classDescriptionMap){
+		Map<String, List<String>> samePackageClassNameListMap=new HashMap<String, List<String>>();
+		if(classDescriptionMap!=null){
+			Set<String> classNameSet=classDescriptionMap.keySet();
+			for(String className:classNameSet){
+				String packageName=className.substring(0, className.lastIndexOf(Constant.Symbol.SLASH_LEFT));
+				List<String> classNameList=null;
+				if(samePackageClassNameListMap.containsKey(packageName)){
+					classNameList=samePackageClassNameListMap.get(packageName);
+				}else{
+					classNameList=new ArrayList<String>();
+					samePackageClassNameListMap.put(packageName, classNameList);
+				}
+				classNameList.add(className);
+			}
+		}
+		return samePackageClassNameListMap;
+	}
+
+	/**
+	 * find all same package class name map
+	 * @param rootClassNameList
+	 * @param samePackageClassNameListMap
+	 * @return Map<String,String>
+	 */
+	private static Map<String,String> findAllSamePackageClassNameMap(List<String> rootClassNameList,Map<String,List<String>> samePackageClassNameListMap){
+		Map<String,String> classNameMap=new HashMap<String,String>();
+		if(rootClassNameList!=null&&samePackageClassNameListMap!=null){
+			for(String rootClassName:rootClassNameList){
+				String packageName=rootClassName.substring(0,rootClassName.lastIndexOf(Constant.Symbol.SLASH_LEFT));
+				List<String> samePackageClassNameList=samePackageClassNameListMap.get(packageName);
+				if(samePackageClassNameList!=null){
+					for(String className:samePackageClassNameList){
+						classNameMap.put(className, className);
+					}
+				}else{
+					logger.error("package:"+packageName+" is not exist.", null);
+				}
+			}
+		}
+		return classNameMap;
 	}
 
 	/**
