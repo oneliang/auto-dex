@@ -70,8 +70,8 @@ public final class AutoDexUtil {
 			if(StringUtil.isNotBlank(applicationName)){
 				mainDexClassList.add(applicationName);
 			}
-			mainDexClassList.addAll(findActivity(xPath, document));
 			if(!attachBaseContextMultiDex){
+				mainDexClassList.addAll(findActivity(xPath, document));
 				mainDexClassList.addAll(findProvider(xPath, document));
 				mainDexClassList.addAll(findReceiver(xPath, document));
 				mainDexClassList.addAll(findService(xPath, document));
@@ -296,10 +296,7 @@ public final class AutoDexUtil {
 		outputDirectory=new File(outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long begin=System.currentTimeMillis();
-		List<String> classNameList=new ArrayList<String>();
-		if(!attachBaseContext){
-			classNameList.addAll(findMainDexClassList(androidManifestFullFilename,attachBaseContext));
-		}
+		List<String> classNameList=findMainDexClassList(androidManifestFullFilename,attachBaseContext);
 		if(classNameList!=null){
 			if(mainDexOtherClassList!=null){
 				classNameList.addAll(mainDexOtherClassList);
