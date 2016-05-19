@@ -7,7 +7,9 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -57,10 +59,10 @@ public final class AutoDexUtil {
 	private static final String AUTO_DEX_DEX_CLASSES_PREFIX="dexClasses";
 
 	/**
-	 * find main dex class list
+	 * find main class list from android manifest
 	 * @return List<String>
 	 */
-	public static List<String> findMainDexClassList(String androidManifestFullFilename,boolean attachBaseContextMultiDex){
+	public static List<String> findMainDexClassListFromAndroidManifest(String androidManifestFullFilename,boolean attachBaseContextMultiDex){
 		List<String> mainDexClassList=new ArrayList<String>();
 		XPathFactory xPathFactory = XPathFactory.newInstance();
 		XPath xPath = xPathFactory.newXPath();
@@ -296,20 +298,16 @@ public final class AutoDexUtil {
 		outputDirectory=new File(outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long begin=System.currentTimeMillis();
-		List<String> classNameList=findMainDexClassList(androidManifestFullFilename,attachBaseContext);
+		List<String> classNameList=findMainDexClassListFromAndroidManifest(androidManifestFullFilename,attachBaseContext);
 		if(classNameList!=null){
 			if(mainDexOtherClassList!=null){
 				classNameList.addAll(mainDexOtherClassList);
 			}
 			final String packageName=parsePackageName(androidManifestFullFilename);
 			List<String> mainDexRootClassNameList=new ArrayList<String>();
-			for(String className:classNameList){
-				className=className.trim();
-				if(className.startsWith(Constant.Symbol.DOT)){
-					className=packageName+className;
-				}
-				className=className.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT)+Constant.Symbol.DOT+Constant.File.CLASS;
-				mainDexRootClassNameList.add(className);
+			mainDexRootClassNameList.addAll(findMainRootClassSet(allClassesJar, packageName, classNameList));
+			for(String className:mainDexRootClassNameList){
+				logger.verbose("main root class:"+className);
 			}
 			//find all layout xml
 			final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
@@ -774,6 +772,64 @@ public final class AutoDexUtil {
 			}
 		}
 		return packageName;
+	}
+
+	/**
+	 * find main root class set
+	 * @param allClassesJar
+	 * @param classNameList
+	 * @return List<String>
+	 */
+	private static Set<String> findMainRootClassSet(String allClassesJar, String packageName, List<String> classNameList){
+		List<String> regexList=new ArrayList<String>();
+		Set<String> allClassSet=new HashSet<String>();
+		if(classNameList!=null){
+			for(String className:classNameList){
+				className=className.trim();
+				if(StringUtil.isNotBlank(className)){
+					if(className.startsWith(Constant.Symbol.DOT)){
+						className=packageName+className;
+					}
+					className=className.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT);
+					if(className.indexOf(Constant.Symbol.WILDCARD)>-1||className.indexOf(Constant.Symbol.WILDCARD+Constant.Symbol.WILDCARD)>-1){
+						String regex=Constant.Symbol.XOR+className.replace(Constant.Symbol.WILDCARD+Constant.Symbol.WILDCARD, "[\\S]+").replace(Constant.Symbol.WILDCARD, "[^/\\s]+")+Constant.Symbol.DOLLAR;
+						regexList.add(regex);
+					}else{
+						className=className+Constant.Symbol.DOT+Constant.File.CLASS;
+						allClassSet.add(className);
+					}
+				}
+			}
+		}
+		if(allClassesJar!=null){
+			ZipFile zipFile = null;
+			try{
+				zipFile = new ZipFile(allClassesJar);
+				Enumeration<? extends ZipEntry> enumeration = zipFile.entries();
+				while (enumeration.hasMoreElements()) {
+					ZipEntry zipEntry = enumeration.nextElement();
+					String zipEntryName = zipEntry.getName();
+					String className=zipEntryName.replace(Constant.Symbol.DOT+Constant.File.CLASS, StringUtil.BLANK);
+					for(String regex:regexList){
+						if(StringUtil.isMatchRegex(className, regex)){
+							logger.verbose("match:"+zipEntryName);
+							allClassSet.add(zipEntryName);
+						}
+					}
+				}
+			}catch(Exception e){
+				throw new AutoDexUtilException(e);
+			}finally{
+				if(zipFile!=null){
+					try {
+						zipFile.close();
+					} catch (Exception e) {
+						throw new AutoDexUtilException(e);
+					}
+				}
+			}
+		}
+		return allClassSet;
 	}
 
 	private static class AutoDexUtilException extends RuntimeException{

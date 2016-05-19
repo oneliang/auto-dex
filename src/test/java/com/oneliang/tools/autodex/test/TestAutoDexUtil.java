@@ -18,12 +18,12 @@ import com.oneliang.util.logging.LoggerManager;
 
 public class TestAutoDexUtil {
 
-	private static final String allClassesJar="/D:/aop.jar";
+	private static final String allClassesJar="/D:/main.jar";
 	private static final String androidManifestFullFilename="/D:/wechat_base/app/public/AndroidManifest.xml";
-	private static final String mainDexOtherClasses="android.support.multidex.*,.algorithm.*,.app.*,.compatible.loader.*,.loader.stub.*,.sdk.crash.*,.sdk.platformtools.*,.sdk.storage.*";
+	private static final String mainDexOtherClasses=".app.Push*";
 	private static final String outputDirectory="/D:/split";
-	private static final boolean debug=true;
-	private static final boolean autoByPackage=true;
+	private static final boolean debug=false;
+	private static final boolean autoByPackage=false;
 
 	public static void main(String[] args) throws Exception{
 		List<AbstractLogger> loggerList=new ArrayList<AbstractLogger>();
