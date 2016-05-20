@@ -18,23 +18,24 @@ import com.oneliang.util.logging.LoggerManager;
 
 public class TestAutoDexUtil {
 
-	private static final String allClassesJar="/D:/main.jar";
+	private static final String allClassesJar="/D:/allClasses.jar";
 	private static final String androidManifestFullFilename="/D:/wechat_base/app/public/AndroidManifest.xml";
-	private static final String mainDexOtherClasses=".app.Push*";
+	private static final String mainDexOtherClasses=".ui.LauncherUI";
 	private static final String outputDirectory="/D:/split";
-	private static final boolean debug=false;
+	private static final boolean debug=true;
+	private static final boolean attachBaseContext=debug;
 	private static final boolean autoByPackage=false;
 
 	public static void main(String[] args) throws Exception{
 		List<AbstractLogger> loggerList=new ArrayList<AbstractLogger>();
 		loggerList.add(new BaseLogger(Logger.Level.INFO));
 		loggerList.add(new FileLogger(Logger.Level.VERBOSE,new File("/D:/a.txt")));
-		Logger logger=new ComplexLogger(Logger.Level.INFO, loggerList);
+		Logger logger=new ComplexLogger(Logger.Level.VERBOSE, loggerList);
 		LoggerManager.registerLogger(AutoDexUtil.class, logger);
 		LoggerManager.registerLogger(AsmUtil.class, logger);
 //		System.setOut(new PrintStream(new FileOutputStream("/D:/mainDex.txt")));
 		FileUtil.deleteAllFile(outputDirectory);
-		AutoDexUtil.autoDex(allClassesJar, androidManifestFullFilename, Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA)), outputDirectory, debug, autoByPackage);
+		AutoDexUtil.autoDex(allClassesJar, androidManifestFullFilename, attachBaseContext, Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA)), outputDirectory, debug, autoByPackage);
 	}
 	
 }

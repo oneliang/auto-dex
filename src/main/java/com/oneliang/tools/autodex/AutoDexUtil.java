@@ -278,7 +278,21 @@ public final class AutoDexUtil {
 	 * @param autoByPackage
 	 */
 	public static void autoDex(String allClassesJar,String androidManifestFullFilename, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
-		autoDex(allClassesJar, androidManifestFullFilename, debug, mainDexOtherClassList, outputDirectory, debug?(DEFAULT_FIELD_LIMIT-0x200):DEFAULT_FIELD_LIMIT, debug?(DEFAULT_METHOD_LIMIT-0x200):DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
+		autoDex(allClassesJar, androidManifestFullFilename, debug, mainDexOtherClassList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
+	}
+
+	/**
+	 * auto dex
+	 * @param allClassesJar
+	 * @param androidManifestFullFilename
+	 * @param attachBaseContext
+	 * @param mainDexOtherClassList
+	 * @param outputDirectory
+	 * @param debug
+	 * @param autoByPackage
+	 */
+	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
+		autoDex(allClassesJar, androidManifestFullFilename, attachBaseContext, mainDexOtherClassList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
 	}
 
 	/**
