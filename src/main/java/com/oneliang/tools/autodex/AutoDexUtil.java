@@ -312,54 +312,56 @@ public final class AutoDexUtil {
 		outputDirectory=new File(outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long begin=System.currentTimeMillis();
-		List<String> classNameList=findMainDexClassListFromAndroidManifest(androidManifestFullFilename,attachBaseContext);
-		if(classNameList!=null){
-			if(mainDexOtherClassList!=null){
-				classNameList.addAll(mainDexOtherClassList);
-			}
-			final String packageName=parsePackageName(androidManifestFullFilename);
-			List<String> mainDexRootClassNameList=new ArrayList<String>();
-			mainDexRootClassNameList.addAll(findMainRootClassSet(allClassesJar, packageName, classNameList));
-			for(String className:mainDexRootClassNameList){
-				logger.verbose("main root class:"+className);
-			}
-			//find all layout xml
-			final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
-			logger.info("Auto dex cost:"+(System.currentTimeMillis()-begin));
-			try{
-				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
-				final Map<Integer,List<String>> subDexListMap=splitAndDx(allClassesJar, splitAndDxTempDirectory, dexIdClassNameMap, debug);
-				//concurrent merge dex
-				begin=System.currentTimeMillis();
-				final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
-				Set<Integer> dexIdSet=subDexListMap.keySet();
-				for(final int dexId:dexIdSet){
-					String dexOutputDirectory=outputDirectory;
-					String dexFullFilename=null;
-					if(dexId==0){
-						dexFullFilename=dexOutputDirectory+"/"+CLASSES+Constant.Symbol.DOT+DEX;
-					}else{
-						dexFullFilename=dexOutputDirectory+"/"+CLASSES+(dexId+1)+Constant.Symbol.DOT+DEX;
-					}
-					final String finalDexFullFilename=dexFullFilename;
-					Thread thread=new Thread(new Runnable(){
-						public void run() {
-							try{
-								DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
-							}catch(Exception e){
-								logger.error(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage(), e);
-							}
-							countDownLatch.countDown();
-						}
-					});
-					thread.start();
+		List<String> classNameList=new ArrayList<String>();
+		if(FileUtil.isExist(androidManifestFullFilename)){
+			classNameList.addAll(findMainDexClassListFromAndroidManifest(androidManifestFullFilename,attachBaseContext));
+		}
+		if(mainDexOtherClassList!=null){
+			classNameList.addAll(mainDexOtherClassList);
+		}
+		final String packageName=parsePackageName(androidManifestFullFilename);
+		List<String> mainDexRootClassNameList=new ArrayList<String>();
+		mainDexRootClassNameList.addAll(findMainRootClassSet(allClassesJar, packageName, classNameList));
+		for(String className:mainDexRootClassNameList){
+			logger.verbose("main root class:"+className);
+		}
+		//find all layout xml
+		final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
+		logger.info("Caculate total cost:"+(System.currentTimeMillis()-begin));
+		try{
+			String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
+			final Map<Integer,List<String>> subDexListMap=splitAndDx(allClassesJar, splitAndDxTempDirectory, dexIdClassNameMap, debug);
+			//concurrent merge dex
+			begin=System.currentTimeMillis();
+			final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
+			Set<Integer> dexIdSet=subDexListMap.keySet();
+			for(final int dexId:dexIdSet){
+				String dexOutputDirectory=outputDirectory;
+				String dexFullFilename=null;
+				if(dexId==0){
+					dexFullFilename=dexOutputDirectory+"/"+CLASSES+Constant.Symbol.DOT+DEX;
+				}else{
+					dexFullFilename=dexOutputDirectory+"/"+CLASSES+(dexId+1)+Constant.Symbol.DOT+DEX;
 				}
-				countDownLatch.await();
-				logger.info("Merge dex cost:"+(System.currentTimeMillis()-begin));
-				FileUtil.deleteAllFile(splitAndDxTempDirectory);
-			}catch(Exception e){
-				throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
+				final String finalDexFullFilename=dexFullFilename;
+				Thread thread=new Thread(new Runnable(){
+					public void run() {
+						try{
+							DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
+						}catch(Exception e){
+							logger.error(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage(), e);
+						}
+						countDownLatch.countDown();
+					}
+				});
+				thread.start();
 			}
+			countDownLatch.await();
+			logger.info("Merge dex cost:"+(System.currentTimeMillis()-begin));
+			FileUtil.deleteAllFile(splitAndDxTempDirectory);
+		}catch(Exception e){
+			throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
+		}
 //			ZipFile zipFile = null;
 //			try{
 //				zipFile=new ZipFile(allClassesJar);
@@ -419,7 +421,6 @@ public final class AutoDexUtil {
 //					}
 //				}
 //			}
-		}
 	}
 
 	/**
@@ -442,7 +443,7 @@ public final class AutoDexUtil {
 				//all class description
 				Map<String,List<ClassDescription>> referencedClassDescriptionListMap=new HashMap<String,List<ClassDescription>>();
 				Map<String,ClassDescription> classDescriptionMap=AsmUtil.findClassDescriptionMapWithJar(allClassesJar,referencedClassDescriptionListMap, fieldProcessor);
-				logger.info("\tclassDescriptionMap:"+classDescriptionMap.size()+",referencedClassDescriptionListMap:"+referencedClassDescriptionListMap.size());
+				logger.info("classDescriptionMap:"+classDescriptionMap.size()+",referencedClassDescriptionListMap:"+referencedClassDescriptionListMap.size());
 				//all class map
 				Map<String,String> allClassNameMap=new HashMap<String,String>();
 				Set<String> classNameKeySet=classDescriptionMap.keySet();
@@ -578,8 +579,8 @@ public final class AutoDexUtil {
 								break;
 							}
 						}
-						logger.info("Auto split dex cost:"+(System.currentTimeMillis()-begin));
-						logger.info("\tremain classes:"+allClassNameMap.size());
+						logger.info("Caculate class dependency cost:"+(System.currentTimeMillis()-begin));
+						logger.info("remain classes:"+allClassNameMap.size());
 						Iterator<Entry<Integer,AllocStat>> iterator=dexAllocStatMap.entrySet().iterator();
 						while(iterator.hasNext()){
 							Entry<Integer,AllocStat> entry=iterator.next();

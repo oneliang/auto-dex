@@ -20,7 +20,7 @@ public class TestAutoDexUtil {
 
 	private static final String allClassesJar="/D:/allClasses.jar";
 	private static final String androidManifestFullFilename="/D:/wechat_base/app/public/AndroidManifest.xml";
-	private static final String mainDexOtherClasses=".ui.LauncherUI";
+	private static final String mainDexOtherClasses="com.tencent.mm.ui.LauncherUI";
 	private static final String outputDirectory="/D:/split";
 	private static final boolean debug=true;
 	private static final boolean attachBaseContext=debug;
@@ -30,7 +30,7 @@ public class TestAutoDexUtil {
 		List<AbstractLogger> loggerList=new ArrayList<AbstractLogger>();
 		loggerList.add(new BaseLogger(Logger.Level.INFO));
 		loggerList.add(new FileLogger(Logger.Level.VERBOSE,new File("/D:/a.txt")));
-		Logger logger=new ComplexLogger(Logger.Level.VERBOSE, loggerList);
+		Logger logger=new ComplexLogger(Logger.Level.INFO, loggerList);
 		LoggerManager.registerLogger(AutoDexUtil.class, logger);
 		LoggerManager.registerLogger(AsmUtil.class, logger);
 //		System.setOut(new PrintStream(new FileOutputStream("/D:/mainDex.txt")));
