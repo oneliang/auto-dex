@@ -1,9 +1,14 @@
 package com.oneliang.tools.autodex;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -270,20 +275,20 @@ public final class AutoDexUtil {
 
 	/**
 	 * auto dex
-	 * @param allClassesJar
+	 * @param combinedClassSet,include class root path or jar file
 	 * @param androidManifestFullFilename
 	 * @param mainDexOtherClassList
 	 * @param outputDirectory
 	 * @param debug
 	 * @param autoByPackage
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
-		autoDex(allClassesJar, androidManifestFullFilename, debug, mainDexOtherClassList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
+	public static void autoDex(Set<String> combinedClassSet, String androidManifestFullFilename, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
+		autoDex(combinedClassSet, androidManifestFullFilename, debug, mainDexOtherClassList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
 	}
 
 	/**
 	 * auto dex
-	 * @param allClassesJar
+	 * @param combinedClassSet,include class root path or jar file
 	 * @param androidManifestFullFilename
 	 * @param attachBaseContext
 	 * @param mainDexOtherClassList
@@ -291,13 +296,13 @@ public final class AutoDexUtil {
 	 * @param debug
 	 * @param autoByPackage
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
-		autoDex(allClassesJar, androidManifestFullFilename, attachBaseContext, mainDexOtherClassList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
+	public static void autoDex(Set<String> combinedClassSet, String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
+		autoDex(combinedClassSet, androidManifestFullFilename, attachBaseContext, mainDexOtherClassList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
 	}
 
 	/**
 	 * auto dex
-	 * @param allClassesJar
+	 * @param combinedClassSet,include class root path or jar file
 	 * @param androidManifestFullFilename
 	 * @param attachBaseContext
 	 * @param mainDexOtherClassList
@@ -308,29 +313,38 @@ public final class AutoDexUtil {
 	 * @param debug
 	 * @param autoByPackage
 	 */
-	public static void autoDex(String allClassesJar,String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final boolean autoByPackage) {
+	public static void autoDex(Set<String> combinedClassSet, String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final boolean autoByPackage) {
 		outputDirectory=new File(outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long begin=System.currentTimeMillis();
 		List<String> classNameList=new ArrayList<String>();
-		if(FileUtil.isExist(androidManifestFullFilename)){
+		//parse android manifest and package name
+		String packageName=null;
+		if(androidManifestFullFilename!=null&&FileUtil.isExist(androidManifestFullFilename)){
 			classNameList.addAll(findMainDexClassListFromAndroidManifest(androidManifestFullFilename,attachBaseContext));
+			packageName=parsePackageName(androidManifestFullFilename);
 		}
+		//read all combined class
+		String classNameByteArrayMapCacheFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+"classNameByteArrayMap.txt";
+		String classNameFilenameMapCacheFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+"classNameFilenameMap.txt";
+		CombinedClassCache combinedClassCache=readAllCombinedClass(combinedClassSet, classNameByteArrayMapCacheFullFilename, classNameFilenameMapCacheFullFilename);
+		//find main root class
 		if(mainDexOtherClassList!=null){
 			classNameList.addAll(mainDexOtherClassList);
 		}
-		final String packageName=parsePackageName(androidManifestFullFilename);
-		List<String> mainDexRootClassNameList=new ArrayList<String>();
-		mainDexRootClassNameList.addAll(findMainRootClassSet(allClassesJar, packageName, classNameList));
+		Set<String> mainDexRootClassNameList=new HashSet<String>();
+		if(combinedClassSet!=null){
+			mainDexRootClassNameList.addAll(findMainRootClassSet(combinedClassCache.classNameByteArrayMap.keySet(), packageName, classNameList));
+		}
 		for(String className:mainDexRootClassNameList){
 			logger.verbose("main root class:"+className);
 		}
 		//find all layout xml
-		final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(allClassesJar, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
+		final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(combinedClassCache.classNameByteArrayMap, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
 		logger.info("Caculate total cost:"+(System.currentTimeMillis()-begin));
 		try{
 			String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
-			final Map<Integer,List<String>> subDexListMap=splitAndDx(allClassesJar, splitAndDxTempDirectory, dexIdClassNameMap, debug);
+			final Map<Integer,List<String>> subDexListMap=splitAndDx(combinedClassCache.classNameByteArrayMap, splitAndDxTempDirectory, dexIdClassNameMap, debug);
 			//concurrent merge dex
 			begin=System.currentTimeMillis();
 			final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
@@ -425,8 +439,8 @@ public final class AutoDexUtil {
 
 	/**
 	 * auto dex
-	 * @param allClassesJar
-	 * @param mainDexRootClassNameList
+	 * @param classNameByteArrayMap
+	 * @param mainDexRootClassNameSet
 	 * @param fieldLimit
 	 * @param methodLimit
 	 * @param linearAllocLimit
@@ -435,160 +449,153 @@ public final class AutoDexUtil {
 	 * @param fieldProcessor
 	 * @return Map<Integer, Map<String,String>>, <dexId,classNameMap>
 	 */
-	public static Map<Integer,Map<String,String>> autoDex(String allClassesJar,List<String> mainDexRootClassNameList, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final boolean autoByPackage, final FieldProcessor fieldProcessor){
+	public static Map<Integer,Map<String,String>> autoDex(Map<String, byte[]> classNameByteArrayMap,Set<String> mainDexRootClassNameSet, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final boolean autoByPackage, final FieldProcessor fieldProcessor){
 		final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 		try{
-			if(FileUtil.isExist(allClassesJar)){
-				long begin=System.currentTimeMillis();
-				//all class description
-				Map<String,List<ClassDescription>> referencedClassDescriptionListMap=new HashMap<String,List<ClassDescription>>();
-				Map<String,ClassDescription> classDescriptionMap=AsmUtil.findClassDescriptionMapWithJar(allClassesJar,referencedClassDescriptionListMap, fieldProcessor);
-				logger.info("classDescriptionMap:"+classDescriptionMap.size()+",referencedClassDescriptionListMap:"+referencedClassDescriptionListMap.size());
-				//all class map
-				Map<String,String> allClassNameMap=new HashMap<String,String>();
-				Set<String> classNameKeySet=classDescriptionMap.keySet();
-				for(String className:classNameKeySet){
-					allClassNameMap.put(className, className);
-				}
-				logger.info("Find all class description cost:"+(System.currentTimeMillis()-begin));
-				Map<String, List<String>> samePackageClassNameListMap=null;
-				if(autoByPackage){
-					samePackageClassNameListMap=findAllSamePackageClassNameListMap(classDescriptionMap);
-				}
-				//main dex
+			long begin=System.currentTimeMillis();
+			//all class description
+			Map<String,List<ClassDescription>> referencedClassDescriptionListMap=new HashMap<String,List<ClassDescription>>();
+			Map<String,ClassDescription> classDescriptionMap=new HashMap<String,ClassDescription>();
+			if(classNameByteArrayMap!=null){
+				classDescriptionMap.putAll(AsmUtil.findClassDescriptionMap(classNameByteArrayMap, referencedClassDescriptionListMap));
+			}
+			logger.info("classDescriptionMap:"+classDescriptionMap.size()+",referencedClassDescriptionListMap:"+referencedClassDescriptionListMap.size());
+			//all class map
+			Map<String,String> allClassNameMap=new HashMap<String,String>();
+			Set<String> classNameKeySet=classDescriptionMap.keySet();
+			for(String className:classNameKeySet){
+				allClassNameMap.put(className, className);
+			}
+			logger.info("Find all class description cost:"+(System.currentTimeMillis()-begin));
+			Map<String, List<String>> samePackageClassNameListMap=null;
+			if(autoByPackage){
+				samePackageClassNameListMap=findAllSamePackageClassNameListMap(classDescriptionMap);
+			}
+			//main dex
+			begin=System.currentTimeMillis();
+			if(mainDexRootClassNameSet!=null){
 				begin=System.currentTimeMillis();
-				final ZipFile zipFile=new ZipFile(allClassesJar);
-				try{
-					if(mainDexRootClassNameList!=null){
-						begin=System.currentTimeMillis();
-						Map<Integer,List<String>> dexClassRootListMap=new HashMap<Integer,List<String>>();
-						dexClassRootListMap.put(0, mainDexRootClassNameList);
-						Queue<Integer> dexQueue=new ConcurrentLinkedQueue<Integer>();
-						dexQueue.add(0);
-						final Map<Integer,AllocStat> dexAllocStatMap=new HashMap<Integer,AllocStat>();
-						int autoDexId=0;
-						while(!dexQueue.isEmpty()){
-							Integer dexId=dexQueue.poll();
-							List<String> rootClassNameList=dexClassRootListMap.get(dexId);
-							Map<String,String> dependClassNameMap=null;
-							if(autoByPackage){
-								dependClassNameMap=findAllSamePackageClassNameMap(rootClassNameList, samePackageClassNameListMap);
-							}else{
-								dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameList, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap);
-							}
-							//先算这一垞有多少个方法数和linear
-							AllocStat thisTimeAllocStat=new AllocStat();
-							thisTimeAllocStat.setMethodReferenceMap(new HashMap<String,String>());
-							thisTimeAllocStat.setFieldReferenceMap(new HashMap<String,String>());
-							Set<String> keySet=dependClassNameMap.keySet();
-							for(String key:keySet){
-								AllocStat allocStat=null;
-								try {
-									allocStat = LinearAllocUtil.estimateClass(zipFile.getInputStream(zipFile.getEntry(key)));
-								} catch (FileNotFoundException e) {
-									throw new AutoDexUtilException(e);
-								}
-								thisTimeAllocStat.setTotalAlloc(thisTimeAllocStat.getTotalAlloc()+allocStat.getTotalAlloc());
-								List<MethodReference> methodReferenceList=allocStat.getMethodReferenceList();
-								if(methodReferenceList!=null){
-									for(MethodReference methodReference:methodReferenceList){
-										thisTimeAllocStat.getMethodReferenceMap().put(methodReference.toString(), methodReference.toString());
-									}
-								}
-								//field reference map
-								ClassDescription classDescription=classDescriptionMap.get(key);
-								thisTimeAllocStat.getFieldReferenceMap().putAll(classDescription.referenceFieldNameMap);
-								for(String fieldName:classDescription.fieldNameList){
-									thisTimeAllocStat.getFieldReferenceMap().put(fieldName, fieldName);
-								}
-								allClassNameMap.remove(key);
-							}
-							//然后加上原来dex已经统计的方法数,如果是dexId=0就记一次就好了
-							AllocStat dexTotalAllocStat=null;
-							if(dexAllocStatMap.containsKey(dexId)){
-								dexTotalAllocStat=dexAllocStatMap.get(dexId);
-							}else{
-								dexTotalAllocStat=new AllocStat();
-								dexTotalAllocStat.setMethodReferenceMap(new HashMap<String,String>());
-								dexTotalAllocStat.setFieldReferenceMap(new HashMap<String,String>());
-								dexAllocStatMap.put(dexId, dexTotalAllocStat);
-							}
-							//因为dexId=0只会循环一次，所以如果还有类没分完，而且当前是dexId=0的话就开始第二个dex,此注释已过期,现在优先把主dex撑满
-							int tempFieldLimit=fieldLimit;
-							int tempMethodLimit=methodLimit;
-							int tempLinearAllocLimit=linearAllocLimit;
-							if(dexId==0){
-								int thisTimeFieldLimit=thisTimeAllocStat.getFieldReferenceMap().size();
-								int thisTimeMethodLimit=thisTimeAllocStat.getMethodReferenceMap().size();
-								int thisTimeTotalAlloc=dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc();
-								if(thisTimeFieldLimit>tempFieldLimit){
-									tempFieldLimit=thisTimeFieldLimit;
-								}
-								if(thisTimeMethodLimit>tempMethodLimit){
-									tempMethodLimit=thisTimeMethodLimit;
-								}
-								if(thisTimeTotalAlloc>tempLinearAllocLimit){
-									tempLinearAllocLimit=thisTimeTotalAlloc;
-								}
-							}
-//							if(dexId==0){
-//								dexTotalAllocStat.setTotalAlloc(dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc());
-//								dexTotalAllocStat.getMethodReferenceMap().putAll(thisTimeAllocStat.getMethodReferenceMap());
-//								//add to current dex class name map
-//								if(!dexIdClassNameMap.containsKey(dexId)){
-//									dexIdClassNameMap.put(dexId, dependClassNameMap);
-//								}
-//								//and put the this time alloc stat to dex all stat map
-//								dexAllocStatMap.put(dexId, thisTimeAllocStat);
-//								autoDexId++;
-//							}else{//不是主dex的时候才要考虑合并计算
-								//先clone原有的map，然后合并估算一下
-								Map<String,String> oldFieldReferenceMap=dexTotalAllocStat.getFieldReferenceMap();
-								Map<String,String> oldMethodReferenceMap=dexTotalAllocStat.getMethodReferenceMap();
-								Map<String,String> tempFieldReferenceMap=(Map<String,String>)((HashMap<String,String>)oldFieldReferenceMap).clone();
-								Map<String,String> tempMethodReferenceMap=(Map<String,String>)((HashMap<String,String>)oldMethodReferenceMap).clone();
-								tempFieldReferenceMap.putAll(thisTimeAllocStat.getFieldReferenceMap());
-								tempMethodReferenceMap.putAll(thisTimeAllocStat.getMethodReferenceMap());
-								int tempTotalAlloc=dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc();
-								//如果没有超过method limit就不增加autoDexId
-								if(tempFieldReferenceMap.size()<=tempFieldLimit&&tempMethodReferenceMap.size()<=tempMethodLimit&&tempTotalAlloc<=tempLinearAllocLimit){
-									dexTotalAllocStat.setTotalAlloc(dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc());
-									dexTotalAllocStat.getMethodReferenceMap().putAll(thisTimeAllocStat.getMethodReferenceMap());
-									dexTotalAllocStat.getFieldReferenceMap().putAll(thisTimeAllocStat.getFieldReferenceMap());
-									if(!dexIdClassNameMap.containsKey(dexId)){
-										dexIdClassNameMap.put(dexId, dependClassNameMap);
-									}else{
-										dexIdClassNameMap.get(dexId).putAll(dependClassNameMap);
-									}
-								}else{
-									//this dex is full then next one.
-									autoDexId++;
-									//add to new dex class name map
-									if(!dexIdClassNameMap.containsKey(autoDexId)){
-										dexIdClassNameMap.put(autoDexId, dependClassNameMap);
-									}
-									//and put the this time alloc stat to dex all stat map
-									dexAllocStatMap.put(autoDexId, thisTimeAllocStat);
-								}
-//							}
-							//autoDexId不变的时候还要继续当前dex
-							Set<String> remainKeySet=allClassNameMap.keySet();
-							for(String key:remainKeySet){
-								dexQueue.add(autoDexId);
-								dexClassRootListMap.put(autoDexId, Arrays.asList(key));
-								break;
+				Map<Integer,Set<String>> dexClassRootSetMap=new HashMap<Integer,Set<String>>();
+				dexClassRootSetMap.put(0, mainDexRootClassNameSet);
+				Queue<Integer> dexQueue=new ConcurrentLinkedQueue<Integer>();
+				dexQueue.add(0);
+				final Map<Integer,AllocStat> dexAllocStatMap=new HashMap<Integer,AllocStat>();
+				int autoDexId=0;
+				while(!dexQueue.isEmpty()){
+					Integer dexId=dexQueue.poll();
+					Set<String> rootClassNameSet=dexClassRootSetMap.get(dexId);
+					Map<String,String> dependClassNameMap=null;
+					if(autoByPackage){
+						dependClassNameMap=findAllSamePackageClassNameMap(rootClassNameSet, samePackageClassNameListMap);
+					}else{
+						dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap);
+					}
+					//先算这一垞有多少个方法数和linear
+					AllocStat thisTimeAllocStat=new AllocStat();
+					thisTimeAllocStat.setMethodReferenceMap(new HashMap<String,String>());
+					thisTimeAllocStat.setFieldReferenceMap(new HashMap<String,String>());
+					Set<String> keySet=dependClassNameMap.keySet();
+					for(String key:keySet){
+						AllocStat allocStat = LinearAllocUtil.estimateClass(new ByteArrayInputStream(classNameByteArrayMap.get(key)));
+						thisTimeAllocStat.setTotalAlloc(thisTimeAllocStat.getTotalAlloc()+allocStat.getTotalAlloc());
+						List<MethodReference> methodReferenceList=allocStat.getMethodReferenceList();
+						if(methodReferenceList!=null){
+							for(MethodReference methodReference:methodReferenceList){
+								thisTimeAllocStat.getMethodReferenceMap().put(methodReference.toString(), methodReference.toString());
 							}
 						}
-						logger.info("Caculate class dependency cost:"+(System.currentTimeMillis()-begin));
-						logger.info("remain classes:"+allClassNameMap.size());
-						Iterator<Entry<Integer,AllocStat>> iterator=dexAllocStatMap.entrySet().iterator();
-						while(iterator.hasNext()){
-							Entry<Integer,AllocStat> entry=iterator.next();
-							logger.info("\tdexId:"+entry.getKey()+"\tlinearAlloc:"+entry.getValue().getTotalAlloc()+"\tfield:"+entry.getValue().getFieldReferenceMap().size()+"\tmethod:"+entry.getValue().getMethodReferenceMap().size());
+						//field reference map
+						ClassDescription classDescription=classDescriptionMap.get(key);
+						thisTimeAllocStat.getFieldReferenceMap().putAll(classDescription.referenceFieldNameMap);
+						for(String fieldName:classDescription.fieldNameList){
+							thisTimeAllocStat.getFieldReferenceMap().put(fieldName, fieldName);
+						}
+						allClassNameMap.remove(key);
+					}
+					//然后加上原来dex已经统计的方法数,如果是dexId=0就记一次就好了
+					AllocStat dexTotalAllocStat=null;
+					if(dexAllocStatMap.containsKey(dexId)){
+						dexTotalAllocStat=dexAllocStatMap.get(dexId);
+					}else{
+						dexTotalAllocStat=new AllocStat();
+						dexTotalAllocStat.setMethodReferenceMap(new HashMap<String,String>());
+						dexTotalAllocStat.setFieldReferenceMap(new HashMap<String,String>());
+						dexAllocStatMap.put(dexId, dexTotalAllocStat);
+					}
+					//因为dexId=0只会循环一次，所以如果还有类没分完，而且当前是dexId=0的话就开始第二个dex,此注释已过期,现在优先把主dex撑满
+					int tempFieldLimit=fieldLimit;
+					int tempMethodLimit=methodLimit;
+					int tempLinearAllocLimit=linearAllocLimit;
+					if(dexId==0){
+						int thisTimeFieldLimit=thisTimeAllocStat.getFieldReferenceMap().size();
+						int thisTimeMethodLimit=thisTimeAllocStat.getMethodReferenceMap().size();
+						int thisTimeTotalAlloc=dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc();
+						if(thisTimeFieldLimit>tempFieldLimit){
+							tempFieldLimit=thisTimeFieldLimit;
+						}
+						if(thisTimeMethodLimit>tempMethodLimit){
+							tempMethodLimit=thisTimeMethodLimit;
+						}
+						if(thisTimeTotalAlloc>tempLinearAllocLimit){
+							tempLinearAllocLimit=thisTimeTotalAlloc;
 						}
 					}
-				}finally{
-					zipFile.close();
+//					if(dexId==0){
+//						dexTotalAllocStat.setTotalAlloc(dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc());
+//						dexTotalAllocStat.getMethodReferenceMap().putAll(thisTimeAllocStat.getMethodReferenceMap());
+//						//add to current dex class name map
+//						if(!dexIdClassNameMap.containsKey(dexId)){
+//							dexIdClassNameMap.put(dexId, dependClassNameMap);
+//						}
+//						//and put the this time alloc stat to dex all stat map
+//						dexAllocStatMap.put(dexId, thisTimeAllocStat);
+//						autoDexId++;
+//					}else{//不是主dex的时候才要考虑合并计算
+						//先clone原有的map，然后合并估算一下
+						Map<String,String> oldFieldReferenceMap=dexTotalAllocStat.getFieldReferenceMap();
+						Map<String,String> oldMethodReferenceMap=dexTotalAllocStat.getMethodReferenceMap();
+						Map<String,String> tempFieldReferenceMap=(Map<String,String>)((HashMap<String,String>)oldFieldReferenceMap).clone();
+						Map<String,String> tempMethodReferenceMap=(Map<String,String>)((HashMap<String,String>)oldMethodReferenceMap).clone();
+						tempFieldReferenceMap.putAll(thisTimeAllocStat.getFieldReferenceMap());
+						tempMethodReferenceMap.putAll(thisTimeAllocStat.getMethodReferenceMap());
+						int tempTotalAlloc=dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc();
+						//如果没有超过method limit就不增加autoDexId
+						if(tempFieldReferenceMap.size()<=tempFieldLimit&&tempMethodReferenceMap.size()<=tempMethodLimit&&tempTotalAlloc<=tempLinearAllocLimit){
+							dexTotalAllocStat.setTotalAlloc(dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc());
+							dexTotalAllocStat.getMethodReferenceMap().putAll(thisTimeAllocStat.getMethodReferenceMap());
+							dexTotalAllocStat.getFieldReferenceMap().putAll(thisTimeAllocStat.getFieldReferenceMap());
+							if(!dexIdClassNameMap.containsKey(dexId)){
+								dexIdClassNameMap.put(dexId, dependClassNameMap);
+							}else{
+								dexIdClassNameMap.get(dexId).putAll(dependClassNameMap);
+							}
+						}else{
+							//this dex is full then next one.
+							autoDexId++;
+							//add to new dex class name map
+							if(!dexIdClassNameMap.containsKey(autoDexId)){
+								dexIdClassNameMap.put(autoDexId, dependClassNameMap);
+							}
+							//and put the this time alloc stat to dex all stat map
+							dexAllocStatMap.put(autoDexId, thisTimeAllocStat);
+						}
+//					}
+					//autoDexId不变的时候还要继续当前dex
+					Set<String> remainKeySet=allClassNameMap.keySet();
+					for(String key:remainKeySet){
+						dexQueue.add(autoDexId);
+						Set<String> set=new HashSet<String>();
+						set.add(key);
+						dexClassRootSetMap.put(autoDexId, set);
+						break;
+					}
+				}
+				logger.info("Caculate class dependency cost:"+(System.currentTimeMillis()-begin));
+				logger.info("remain classes:"+allClassNameMap.size());
+				Iterator<Entry<Integer,AllocStat>> iterator=dexAllocStatMap.entrySet().iterator();
+				while(iterator.hasNext()){
+					Entry<Integer,AllocStat> entry=iterator.next();
+					logger.info("\tdexId:"+entry.getKey()+"\tlinearAlloc:"+entry.getValue().getTotalAlloc()+"\tfield:"+entry.getValue().getFieldReferenceMap().size()+"\tmethod:"+entry.getValue().getMethodReferenceMap().size());
 				}
 			}
 		}catch(Exception e){
@@ -599,116 +606,113 @@ public final class AutoDexUtil {
 
 	/**
 	 * split and dx
-	 * @param allClassesJar
+	 * @param classNameByteArrayMap
 	 * @param outputDirectory
 	 * @param dexIdClassNameMap
 	 * @param apkDebug
 	 */
-	public static Map<Integer,List<String>> splitAndDx(String allClassesJar,final String outputDirectory,final Map<Integer,Map<String,String>> dexIdClassNameMap,final boolean apkDebug){
+	public static Map<Integer,List<String>> splitAndDx(final Map<String,byte[]> classNameByteArrayMap,final String outputDirectory,final Map<Integer,Map<String,String>> dexIdClassNameMap,final boolean apkDebug){
 		final Map<Integer,List<String>> subDexListMap=new HashMap<Integer,List<String>>();
 		long begin=System.currentTimeMillis();
 		try{
-			if(FileUtil.isExist(allClassesJar)){
-				final String parentOutputDirectory=new File(outputDirectory).getParent();
-				final ZipFile zipFile=new ZipFile(allClassesJar);
-				try{
-					//copy all classes
-					final CountDownLatch splitJarCountDownLatch=new CountDownLatch(dexIdClassNameMap.size());
-					Set<Integer> dexIdSet=dexIdClassNameMap.keySet();
-					final int fileCountPerJar=500;
-					//concurrent split jar
-					for(final int dexId:dexIdSet){
-						final Set<String> classNameSet=dexIdClassNameMap.get(dexId).keySet();
-						Thread thread=new Thread(new Runnable(){
-							public void run() {
-								int total=classNameSet.size();
-								int subDexCount=0,count=0;
-								ZipOutputStream dexJarOutputStream=null;
-								String classesJar=null;
-								String classNameTxt=null;
-								String jarSubDexNameTxt=null;
-								OutputStream classNameTxtOutputStream=null;
-								OutputStream jarSubDexNameTxtOutputStream=null;
-								try{
-									classNameTxt=parentOutputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.TXT;
-									jarSubDexNameTxt=outputDirectory+"/"+dexId+Constant.File.JAR+Constant.Symbol.DOT+Constant.File.TXT;
-									Properties classNameProperties=new Properties();
-									Properties jarSubDexNameProperties=new Properties();
-									for(String className:classNameSet){
-										if(count%fileCountPerJar==0){
-											classesJar=outputDirectory+"/"+AUTO_DEX_DEX_CLASSES_PREFIX+dexId+Constant.Symbol.UNDERLINE+subDexCount+Constant.Symbol.DOT+Constant.File.JAR;
-											classesJar=new File(classesJar).getAbsolutePath();
-											FileUtil.createFile(classesJar);
-											dexJarOutputStream=new ZipOutputStream(new FileOutputStream(classesJar));
-										}
-										ZipEntry zipEntry=zipFile.getEntry(className);
-										FileUtil.addZipEntry(dexJarOutputStream, zipEntry, zipFile.getInputStream(zipEntry));
-										count++;
-										classNameProperties.put(className, classesJar);
-
-										if(count%fileCountPerJar==0||count==total){
-											if(dexJarOutputStream!=null){
-												dexJarOutputStream.flush();
-												dexJarOutputStream.close();
-											}
-											String classesDex=outputDirectory+"/"+AUTO_DEX_DEX_CLASSES_PREFIX+dexId+Constant.Symbol.UNDERLINE+subDexCount+Constant.Symbol.DOT+Constant.File.DEX;
-											classesDex=new File(classesDex).getAbsolutePath();
-											if(classesJar!=null){
-												DexUtil.androidDx(classesDex, Arrays.asList(classesJar), apkDebug);
-												if(subDexListMap.containsKey(dexId)){
-													subDexListMap.get(dexId).add(classesDex);
-												}else{
-													List<String> subDexList=new ArrayList<String>();
-													subDexList.add(classesDex);
-													subDexListMap.put(dexId, subDexList);
-												}
-											}
-											jarSubDexNameProperties.put(classesJar, classesDex);
-											subDexCount++;
-										}
+			final String parentOutputDirectory=new File(outputDirectory).getParent();
+			try{
+				//copy all classes
+				final CountDownLatch splitJarCountDownLatch=new CountDownLatch(dexIdClassNameMap.size());
+				Set<Integer> dexIdSet=dexIdClassNameMap.keySet();
+				final int fileCountPerJar=500;
+				//concurrent split jar
+				for(final int dexId:dexIdSet){
+					final Set<String> classNameSet=dexIdClassNameMap.get(dexId).keySet();
+					Thread thread=new Thread(new Runnable(){
+						public void run() {
+							int total=classNameSet.size();
+							int subDexCount=0,count=0;
+							ZipOutputStream dexJarOutputStream=null;
+							String classesJar=null;
+							String classNameTxt=null;
+							String jarSubDexNameTxt=null;
+							OutputStream classNameTxtOutputStream=null;
+							OutputStream jarSubDexNameTxtOutputStream=null;
+							try{
+								classNameTxt=parentOutputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.TXT;
+								jarSubDexNameTxt=outputDirectory+"/"+dexId+Constant.File.JAR+Constant.Symbol.DOT+Constant.File.TXT;
+								Properties classNameProperties=new Properties();
+								Properties jarSubDexNameProperties=new Properties();
+								for(String className:classNameSet){
+									if(count%fileCountPerJar==0){
+										classesJar=outputDirectory+"/"+AUTO_DEX_DEX_CLASSES_PREFIX+dexId+Constant.Symbol.UNDERLINE+subDexCount+Constant.Symbol.DOT+Constant.File.JAR;
+										classesJar=new File(classesJar).getAbsolutePath();
+										FileUtil.createFile(classesJar);
+										dexJarOutputStream=new ZipOutputStream(new FileOutputStream(classesJar));
 									}
-									classNameTxtOutputStream=new FileOutputStream(classNameTxt);
-									classNameProperties.store(classNameTxtOutputStream, null);
-									jarSubDexNameTxtOutputStream=new FileOutputStream(jarSubDexNameTxt);
-									jarSubDexNameProperties.store(jarSubDexNameTxtOutputStream, null);
-								}catch (Exception e) {
-									throw new AutoDexUtilException(classesJar,e);
-								}finally{
-									if(dexJarOutputStream!=null){
-										try {
+									ZipEntry zipEntry=new ZipEntry(className);
+									byte[] byteArray=classNameByteArrayMap.get(className);
+									FileUtil.addZipEntry(dexJarOutputStream, zipEntry, new ByteArrayInputStream(byteArray));
+									count++;
+									classNameProperties.put(className, classesJar);
+
+									if(count%fileCountPerJar==0||count==total){
+										if(dexJarOutputStream!=null){
 											dexJarOutputStream.flush();
 											dexJarOutputStream.close();
-										} catch (Exception e) {
-											throw new AutoDexUtilException(classesJar,e);
 										}
-									}
-									if(classNameTxtOutputStream!=null){
-										try {
-											classNameTxtOutputStream.flush();
-											classNameTxtOutputStream.close();
-										} catch (Exception e) {
-											throw new AutoDexUtilException(classNameTxt,e);
+										String classesDex=outputDirectory+"/"+AUTO_DEX_DEX_CLASSES_PREFIX+dexId+Constant.Symbol.UNDERLINE+subDexCount+Constant.Symbol.DOT+Constant.File.DEX;
+										classesDex=new File(classesDex).getAbsolutePath();
+										if(classesJar!=null){
+											DexUtil.androidDx(classesDex, Arrays.asList(classesJar), apkDebug);
+											if(subDexListMap.containsKey(dexId)){
+												subDexListMap.get(dexId).add(classesDex);
+											}else{
+												List<String> subDexList=new ArrayList<String>();
+												subDexList.add(classesDex);
+												subDexListMap.put(dexId, subDexList);
+											}
 										}
-									}
-									if(jarSubDexNameTxtOutputStream!=null){
-										try {
-											jarSubDexNameTxtOutputStream.flush();
-											jarSubDexNameTxtOutputStream.close();
-										} catch (Exception e) {
-											throw new AutoDexUtilException(jarSubDexNameTxt,e);
-										}
+										jarSubDexNameProperties.put(classesJar, classesDex);
+										subDexCount++;
 									}
 								}
-								splitJarCountDownLatch.countDown();
+								classNameTxtOutputStream=new FileOutputStream(classNameTxt);
+								classNameProperties.store(classNameTxtOutputStream, null);
+								jarSubDexNameTxtOutputStream=new FileOutputStream(jarSubDexNameTxt);
+								jarSubDexNameProperties.store(jarSubDexNameTxtOutputStream, null);
+							}catch (Exception e) {
+								throw new AutoDexUtilException(classesJar,e);
+							}finally{
+								if(dexJarOutputStream!=null){
+									try {
+										dexJarOutputStream.flush();
+										dexJarOutputStream.close();
+									} catch (Exception e) {
+										throw new AutoDexUtilException(classesJar,e);
+									}
+								}
+								if(classNameTxtOutputStream!=null){
+									try {
+										classNameTxtOutputStream.flush();
+										classNameTxtOutputStream.close();
+									} catch (Exception e) {
+										throw new AutoDexUtilException(classNameTxt,e);
+									}
+								}
+								if(jarSubDexNameTxtOutputStream!=null){
+									try {
+										jarSubDexNameTxtOutputStream.flush();
+										jarSubDexNameTxtOutputStream.close();
+									} catch (Exception e) {
+										throw new AutoDexUtilException(jarSubDexNameTxt,e);
+									}
+								}
 							}
-						});
-						thread.start();
-					}
-					splitJarCountDownLatch.await();
-					logger.info("Split multi jar and dx,file count per jar:"+fileCountPerJar+",cost:"+(System.currentTimeMillis()-begin));
-				}finally{
-					zipFile.close();
+							splitJarCountDownLatch.countDown();
+						}
+					});
+					thread.start();
 				}
+				splitJarCountDownLatch.await();
+				logger.info("Split multi jar and dx,file count per jar:"+fileCountPerJar+",cost:"+(System.currentTimeMillis()-begin));
+			}finally{
 			}
 		}catch (Exception e) {
 			throw new AutoDexUtilException(e);
@@ -742,14 +746,14 @@ public final class AutoDexUtil {
 
 	/**
 	 * find all same package class name map
-	 * @param rootClassNameList
+	 * @param rootClassNameSet
 	 * @param samePackageClassNameListMap
 	 * @return Map<String,String>
 	 */
-	private static Map<String,String> findAllSamePackageClassNameMap(List<String> rootClassNameList,Map<String,List<String>> samePackageClassNameListMap){
+	private static Map<String,String> findAllSamePackageClassNameMap(Set<String> rootClassNameSet,Map<String,List<String>> samePackageClassNameListMap){
 		Map<String,String> classNameMap=new HashMap<String,String>();
-		if(rootClassNameList!=null&&samePackageClassNameListMap!=null){
-			for(String rootClassName:rootClassNameList){
+		if(rootClassNameSet!=null&&samePackageClassNameListMap!=null){
+			for(String rootClassName:rootClassNameSet){
 				String packageName=rootClassName.substring(0,rootClassName.lastIndexOf(Constant.Symbol.SLASH_LEFT));
 				List<String> samePackageClassNameList=samePackageClassNameListMap.get(packageName);
 				if(samePackageClassNameList!=null){
@@ -790,12 +794,126 @@ public final class AutoDexUtil {
 	}
 
 	/**
+	 * read all combined class
+	 * @param combinedClassSet
+	 */
+	private static CombinedClassCache readAllCombinedClass(Set<String> combinedClassSet, String classNameByteArrayMapCacheFullFilename,String classNameFilenameMapCacheFullFilename){
+		Map<String, byte[]> classNameByteArrayMap=new HashMap<String,byte[]>();
+		Map<String, String> classNameFilenameMap=new HashMap<String,String>();
+		if(FileUtil.isExist(classNameByteArrayMapCacheFullFilename)&&FileUtil.isExist(classNameFilenameMapCacheFullFilename)){
+			ObjectInputStream classNameByteArrayMapObjectInputStream=null;
+			ObjectInputStream classNameFilenameMapObjectInputStream=null;
+			try{
+				classNameByteArrayMapObjectInputStream=new ObjectInputStream(new FileInputStream(classNameByteArrayMapCacheFullFilename));
+				classNameFilenameMapObjectInputStream=new ObjectInputStream(new FileInputStream(classNameByteArrayMapCacheFullFilename));
+				classNameByteArrayMap.putAll((Map<String, byte[]>)classNameByteArrayMapObjectInputStream.readObject());
+				classNameFilenameMap.putAll((Map<String, String>)classNameFilenameMapObjectInputStream.readObject());
+			}catch(Exception e){
+				logger.error("Read cache exception.", e);
+			}finally{
+				if(classNameByteArrayMapObjectInputStream!=null){
+					try {
+						classNameByteArrayMapObjectInputStream.close();
+					} catch (IOException e) {
+						logger.error("Close exception.", e);
+					}
+				}
+				if(classNameFilenameMapObjectInputStream!=null){
+					try {
+						classNameFilenameMapObjectInputStream.close();
+					} catch (IOException e) {
+						logger.error("Close exception.", e);
+					}
+				}
+			}
+		}
+		if(classNameByteArrayMap.isEmpty()&&classNameFilenameMap.isEmpty()){
+			long begin=System.currentTimeMillis();
+			if(combinedClassSet!=null){
+				for(String combinedClassFullFilename:combinedClassSet){
+					File combinedClassFile=new File(combinedClassFullFilename);
+					combinedClassFullFilename=combinedClassFile.getAbsolutePath();
+					if(combinedClassFile.isFile()&&combinedClassFile.getName().endsWith(Constant.Symbol.DOT+Constant.File.JAR)){
+						ZipFile zipFile = null;
+						try{
+							zipFile = new ZipFile(combinedClassFile.getAbsolutePath());
+							Enumeration<? extends ZipEntry> enumeration = zipFile.entries();
+							while (enumeration.hasMoreElements()) {
+								ZipEntry zipEntry = enumeration.nextElement();
+								String zipEntryName = zipEntry.getName();
+								if(zipEntryName.endsWith(Constant.Symbol.DOT+Constant.File.CLASS)){
+									InputStream inputStream=null;
+									try{
+										inputStream=zipFile.getInputStream(zipEntry);
+										ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
+										FileUtil.copyStream(inputStream, byteArrayOutputStream);
+										logger.verbose(zipEntryName+","+byteArrayOutputStream.toByteArray().length);
+										classNameByteArrayMap.put(zipEntryName, byteArrayOutputStream.toByteArray());
+										classNameFilenameMap.put(zipEntryName, combinedClassFullFilename);
+									}catch(Exception e){
+										logger.error("Exception:"+zipEntryName, e);
+									}finally{
+										if(inputStream!=null){
+											try{
+												inputStream.close();
+											}catch (Exception e) {
+												logger.error("Close exception:"+zipEntryName, e);
+											}
+										}
+									}
+								}
+							}
+						}catch(Exception e){
+							throw new AutoDexUtilException(e);
+						}finally{
+							if(zipFile!=null){
+								try {
+									zipFile.close();
+								} catch (Exception e) {
+									throw new AutoDexUtilException(e);
+								}
+							}
+						}
+					}else if(combinedClassFile.isDirectory()){
+						String combiledClassRootPath=combinedClassFile.getAbsolutePath();
+						List<String> allClassFullFilenameList=FileUtil.findMatchFile(combiledClassRootPath, Constant.Symbol.DOT+Constant.File.CLASS);
+						if(allClassFullFilenameList!=null){
+							combiledClassRootPath=new File(combiledClassRootPath).getAbsolutePath();
+							for(String classFullFilename:allClassFullFilenameList){
+								classFullFilename=new File(classFullFilename).getAbsolutePath();
+								String relativeClassFilename=classFullFilename.substring(combiledClassRootPath.length()+1);
+								relativeClassFilename=relativeClassFilename.replace(Constant.Symbol.SLASH_RIGHT, Constant.Symbol.SLASH_LEFT);
+								byte[] byteArray=FileUtil.readFile(classFullFilename);
+								classNameByteArrayMap.put(relativeClassFilename, byteArray);
+								classNameFilenameMap.put(relativeClassFilename, combinedClassFullFilename);
+							}
+						}
+					}
+				}
+			}
+			logger.info("Read all class file cost:"+(System.currentTimeMillis()-begin));
+		}
+//		try{
+//			ObjectOutputStream a=new ObjectOutputStream(new FileOutputStream("/D:/classNameByteArrayMap.txt"));
+//			ObjectOutputStream b=new ObjectOutputStream(new FileOutputStream("/D:/classNameFilenameMap.txt"));
+//			a.writeObject(classNameByteArrayMap);
+//			b.writeObject(classNameFilenameMap);
+//			a.close();
+//			b.close();
+//			logger.info("Read all class file cost:"+(System.currentTimeMillis()-begin));
+//		}catch(Exception e){
+//			e.printStackTrace();
+//		}
+		return new CombinedClassCache(classNameByteArrayMap, classNameFilenameMap);
+	}
+
+	/**
 	 * find main root class set
-	 * @param allClassesJar
+	 * @param combinedClassNameSet
 	 * @param classNameList
 	 * @return List<String>
 	 */
-	private static Set<String> findMainRootClassSet(String allClassesJar, String packageName, List<String> classNameList){
+	private static Set<String> findMainRootClassSet(Set<String> combinedClassNameSet, String packageName, List<String> classNameList){
 		List<String> regexList=new ArrayList<String>();
 		Set<String> allClassSet=new HashSet<String>();
 		if(classNameList!=null){
@@ -807,7 +925,7 @@ public final class AutoDexUtil {
 					}
 					className=className.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT);
 					if(className.indexOf(Constant.Symbol.WILDCARD)>-1||className.indexOf(Constant.Symbol.WILDCARD+Constant.Symbol.WILDCARD)>-1){
-						String regex=Constant.Symbol.XOR+className.replace(Constant.Symbol.WILDCARD+Constant.Symbol.WILDCARD, "[\\S]+").replace(Constant.Symbol.WILDCARD, "[^/\\s]+")+Constant.Symbol.DOLLAR;
+						String regex=Constant.Symbol.XOR+className.replace(Constant.Symbol.WILDCARD+Constant.Symbol.WILDCARD, "[\\S]+").replace(Constant.Symbol.WILDCARD, "[^/\\s]+")+Constant.Symbol.DOT+Constant.File.CLASS+Constant.Symbol.DOLLAR;
 						regexList.add(regex);
 					}else{
 						className=className+Constant.Symbol.DOT+Constant.File.CLASS;
@@ -816,35 +934,26 @@ public final class AutoDexUtil {
 				}
 			}
 		}
-		if(allClassesJar!=null){
-			ZipFile zipFile = null;
-			try{
-				zipFile = new ZipFile(allClassesJar);
-				Enumeration<? extends ZipEntry> enumeration = zipFile.entries();
-				while (enumeration.hasMoreElements()) {
-					ZipEntry zipEntry = enumeration.nextElement();
-					String zipEntryName = zipEntry.getName();
-					String className=zipEntryName.replace(Constant.Symbol.DOT+Constant.File.CLASS, StringUtil.BLANK);
-					for(String regex:regexList){
-						if(StringUtil.isMatchRegex(className, regex)){
-							logger.verbose("match:"+zipEntryName);
-							allClassSet.add(zipEntryName);
-						}
-					}
-				}
-			}catch(Exception e){
-				throw new AutoDexUtilException(e);
-			}finally{
-				if(zipFile!=null){
-					try {
-						zipFile.close();
-					} catch (Exception e) {
-						throw new AutoDexUtilException(e);
+		if(combinedClassNameSet!=null){
+			for(String combinedClassName:combinedClassNameSet){
+				for(String regex:regexList){
+					if(StringUtil.isMatchRegex(combinedClassName, regex)){
+						logger.verbose("match:"+combinedClassName);
+						allClassSet.add(combinedClassName);
 					}
 				}
 			}
 		}
 		return allClassSet;
+	}
+
+	public static class CombinedClassCache{
+		public final Map<String,byte[]> classNameByteArrayMap;
+		public final Map<String, String> classNameFilenameMap;
+		public CombinedClassCache(Map<String,byte[]> classNameByteArrayMap,Map<String, String> classNameFilenameMap) {
+			this.classNameByteArrayMap=classNameByteArrayMap;
+			this.classNameFilenameMap=classNameFilenameMap;
+		}
 	}
 
 	private static class AutoDexUtilException extends RuntimeException{
