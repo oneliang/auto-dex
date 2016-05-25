@@ -971,6 +971,8 @@ public final class AutoDexUtil {
 			this.debug=debug;
 			this.fieldLimit=this.debug?(DEFAULT_FIELD_LIMIT-0x200):DEFAULT_FIELD_LIMIT;
 			this.methodLimit=this.debug?(DEFAULT_METHOD_LIMIT-0x200):DEFAULT_METHOD_LIMIT;
+			this.attachBaseContext=this.debug?true:false;
+			this.minMainDex=this.debug?true:false;
 		}
 	}
 
