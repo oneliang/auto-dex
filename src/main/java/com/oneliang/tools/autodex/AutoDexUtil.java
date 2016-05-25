@@ -419,13 +419,9 @@ public final class AutoDexUtil {
 
 	/**
 	 * auto dex
+	 * @param option
 	 * @param classNameByteArrayMap
 	 * @param mainDexRootClassNameSet
-	 * @param fieldLimit
-	 * @param methodLimit
-	 * @param linearAllocLimit
-	 * @param debug
-	 * @param autoByPackage
 	 * @param fieldProcessor
 	 * @return Map<Integer, Map<String,String>>, <dexId,classNameMap>
 	 */
@@ -978,7 +974,7 @@ public final class AutoDexUtil {
 		}
 	}
 
-	public static final class Cache implements Serializable{
+	private static final class Cache implements Serializable{
 		private static final long serialVersionUID = 5668038330717176798L;
 		private final Map<String,byte[]> classNameByteArrayMap;
 		private final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
