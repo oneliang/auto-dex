@@ -978,9 +978,9 @@ public final class AutoDexUtil {
 		private static final long serialVersionUID = 5668038330717176798L;
 		private final Map<String,byte[]> classNameByteArrayMap;
 		private final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
-		public volatile Map<String,byte[]> incrementalClassNameByteArrayMap=null;
-		public volatile Map<String,byte[]> modifiedClassNameByteArrayMap=null;
-		public Cache(Map<String,byte[]> classNameByteArrayMap) {
+		private volatile Map<String,byte[]> incrementalClassNameByteArrayMap=null;
+		private volatile Map<String,byte[]> modifiedClassNameByteArrayMap=null;
+		private Cache(Map<String,byte[]> classNameByteArrayMap) {
 			this.classNameByteArrayMap=classNameByteArrayMap;
 		}
 	}
