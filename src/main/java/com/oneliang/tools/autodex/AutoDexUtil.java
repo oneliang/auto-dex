@@ -135,7 +135,7 @@ public final class AutoDexUtil {
 					Element element=(Element)node;
 					NodeList actionNodeList=element.getElementsByTagName("action");
 					if(actionNodeList.getLength()>0){
-						logger.verbose(activityName);
+//						logger.verbose(activityName);
 //						mainActivityList.add(activityName);
 					}
 					for(int j=0;j<actionNodeList.getLength();j++){
