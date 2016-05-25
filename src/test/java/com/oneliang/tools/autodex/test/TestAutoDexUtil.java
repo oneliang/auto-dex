@@ -3,9 +3,7 @@ package com.oneliang.tools.autodex.test;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import com.oneliang.Constant;
 import com.oneliang.thirdparty.asm.util.AsmUtil;
@@ -20,18 +18,11 @@ import com.oneliang.util.logging.LoggerManager;
 
 public class TestAutoDexUtil {
 
-	private static final Set<String> combinedClassSet=new HashSet<String>(){
-		private static final long serialVersionUID = -5417773762576815727L;
-		{
-			this.add("/D:/main.jar");
-		}
-	};
+	private static final List<String> combinedClassList=Arrays.asList("/D:/allClasses.jar");
 	private static final String androidManifestFullFilename="/D:/wechat_base/app/public/AndroidManifest.xml";
-	private static final String mainDexOtherClasses="com.tencent.mm.ui.LauncherUI";
-	private static final String outputDirectory="/D:/split_optimized";
+	private static final String mainDexOtherClasses="";
+	private static final String outputDirectory="/D:/split";
 	private static final boolean debug=true;
-	private static final boolean attachBaseContext=debug;
-	private static final boolean autoByPackage=false;
 
 	public static void main(String[] args) throws Exception{
 		List<AbstractLogger> loggerList=new ArrayList<AbstractLogger>();
@@ -42,7 +33,11 @@ public class TestAutoDexUtil {
 		LoggerManager.registerLogger(AsmUtil.class, logger);
 //		System.setOut(new PrintStream(new FileOutputStream("/D:/mainDex.txt")));
 //		FileUtil.deleteAllFile(outputDirectory);
-		AutoDexUtil.autoDex(combinedClassSet, androidManifestFullFilename, attachBaseContext, Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA)), outputDirectory, debug, autoByPackage);
+		AutoDexUtil.Option option=new AutoDexUtil.Option(combinedClassList, androidManifestFullFilename, outputDirectory, debug);
+		option.minMainDex=true;
+		option.attachBaseContext=true;
+		option.mainDexOtherClassList=Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA));
+		AutoDexUtil.autoDex(option);
 	}
 	
 }

@@ -10,12 +10,12 @@ public class DexUtil {
 	 * execute android dx
 	 * @param outputDexFullFilename
 	 * @param classesDirectoryListAndLibraryList
-	 * @param isDebug
+	 * @param debug
 	 */
-	public static void androidDx(String outputDexFullFilename,List<String> classesDirectoryListAndLibraryList,boolean isDebug){
+	public static void androidDx(String outputDexFullFilename,List<String> classesDirectoryListAndLibraryList,boolean debug){
 		List<String> parameterList=new ArrayList<String>();
 		parameterList.add("--dex");
-		if(isDebug){
+		if(debug){
 			parameterList.add("--debug");
 		}
 		parameterList.add("--force-jumbo");

@@ -56,9 +56,6 @@ public final class AutoDexUtil {
 
 	private static final Logger logger = LoggerManager.getLogger(AutoDexUtil.class);
 
-	public static final int DEFAULT_FIELD_LIMIT=0xFFD0;//dex field must less than 65536,but field stat always less then in
-	public static final int DEFAULT_METHOD_LIMIT=0xFFFF;//dex must less than 65536,55000 is more safer then 65535
-	public static final int DEFAULT_LINEAR_ALLOC_LIMIT=Integer.MAX_VALUE;
 	private static final String CLASSES="classes";
 	private static final String DEX="dex";
 	private static final String AUTO_DEX_DEX_CLASSES_PREFIX="dexClasses";
@@ -275,165 +272,149 @@ public final class AutoDexUtil {
 
 	/**
 	 * auto dex
-	 * @param combinedClassSet,include class root path or jar file
-	 * @param androidManifestFullFilename
-	 * @param mainDexOtherClassList
-	 * @param outputDirectory
-	 * @param debug
-	 * @param autoByPackage
+	 * @param option
 	 */
-	public static void autoDex(Set<String> combinedClassSet, String androidManifestFullFilename, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
-		autoDex(combinedClassSet, androidManifestFullFilename, debug, mainDexOtherClassList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
-	}
-
-	/**
-	 * auto dex
-	 * @param combinedClassSet,include class root path or jar file
-	 * @param androidManifestFullFilename
-	 * @param attachBaseContext
-	 * @param mainDexOtherClassList
-	 * @param outputDirectory
-	 * @param debug
-	 * @param autoByPackage
-	 */
-	public static void autoDex(Set<String> combinedClassSet, String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, boolean debug, boolean autoByPackage) {
-		autoDex(combinedClassSet, androidManifestFullFilename, attachBaseContext, mainDexOtherClassList, outputDirectory, DEFAULT_FIELD_LIMIT, DEFAULT_METHOD_LIMIT, DEFAULT_LINEAR_ALLOC_LIMIT, debug, autoByPackage);
-	}
-
-	/**
-	 * auto dex
-	 * @param combinedClassSet,include class root path or jar file
-	 * @param androidManifestFullFilename
-	 * @param attachBaseContext
-	 * @param mainDexOtherClassList
-	 * @param outputDirectory
-	 * @param fieldLimit
-	 * @param methodLimit
-	 * @param linearAllocLimit
-	 * @param debug
-	 * @param autoByPackage
-	 */
-	public static void autoDex(Set<String> combinedClassSet, String androidManifestFullFilename, boolean attachBaseContext, List<String> mainDexOtherClassList, String outputDirectory, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final boolean autoByPackage) {
-		outputDirectory=new File(outputDirectory).getAbsolutePath();
+	public static void autoDex(Option option) {
+		String outputDirectory=new File(option.outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
-		long begin=System.currentTimeMillis();
+		long outerBegin=System.currentTimeMillis();
+		long innerBegin=outerBegin;
 		List<String> classNameList=new ArrayList<String>();
 		//parse android manifest and package name
 		String packageName=null;
-		if(androidManifestFullFilename!=null&&FileUtil.isExist(androidManifestFullFilename)){
-			classNameList.addAll(findMainDexClassListFromAndroidManifest(androidManifestFullFilename,attachBaseContext));
-			packageName=parsePackageName(androidManifestFullFilename);
+		if(option.androidManifestFullFilename!=null&&FileUtil.isExist(option.androidManifestFullFilename)){
+			classNameList.addAll(findMainDexClassListFromAndroidManifest(option.androidManifestFullFilename,option.attachBaseContext));
+			packageName=parsePackageName(option.androidManifestFullFilename);
 		}
 		//read all combined class
 		String cacheFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+"cache.txt";
-		AutoDexCache autoDexCache=readAllCombinedClass(combinedClassSet, cacheFullFilename);
+		Cache cache=readAllCombinedClass(option.combinedClassList, cacheFullFilename);
 		//find main root class
-		if(mainDexOtherClassList!=null){
-			classNameList.addAll(mainDexOtherClassList);
+		if(option.mainDexOtherClassList!=null){
+			classNameList.addAll(option.mainDexOtherClassList);
 		}
-		Set<String> mainDexRootClassNameList=new HashSet<String>();
-		if(combinedClassSet!=null){
-			mainDexRootClassNameList.addAll(findMainRootClassSet(autoDexCache.classNameByteArrayMap.keySet(), packageName, classNameList));
+		Set<String> mainDexRootClassNameSet=new HashSet<String>();
+		if(option.combinedClassList!=null){
+			mainDexRootClassNameSet.addAll(findMainRootClassSet(cache.classNameByteArrayMap.keySet(), packageName, classNameList));
 		}
-		for(String className:mainDexRootClassNameList){
-			logger.verbose("main root class:"+className);
+		for(String className:mainDexRootClassNameSet){
+			logger.verbose("Main root class:"+className);
 		}
-		//find all layout xml
-		final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(autoDexCache.classNameByteArrayMap, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
-		logger.info("Caculate total cost:"+(System.currentTimeMillis()-begin));
-		try{
-			String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
-			final Map<Integer,List<String>> subDexListMap=splitAndDx(autoDexCache.classNameByteArrayMap, splitAndDxTempDirectory, dexIdClassNameMap, debug);
-			//concurrent merge dex
-			begin=System.currentTimeMillis();
-			final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
-			Set<Integer> dexIdSet=subDexListMap.keySet();
-			for(final int dexId:dexIdSet){
-				String dexOutputDirectory=outputDirectory;
-				String dexFullFilename=null;
-				if(dexId==0){
-					dexFullFilename=dexOutputDirectory+"/"+CLASSES+Constant.Symbol.DOT+DEX;
-				}else{
-					dexFullFilename=dexOutputDirectory+"/"+CLASSES+(dexId+1)+Constant.Symbol.DOT+DEX;
-				}
-				final String finalDexFullFilename=dexFullFilename;
-				Thread thread=new Thread(new Runnable(){
-					public void run() {
-						try{
-							DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
-						}catch(Exception e){
-							logger.error(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage(), e);
-						}
-						countDownLatch.countDown();
+		Map<Integer,Map<String,String>> dexIdClassNameMap=null;
+		//find all dex class
+		if(cache.dexIdClassNameMap!=null&&!cache.dexIdClassNameMap.isEmpty()){
+			dexIdClassNameMap=cache.dexIdClassNameMap;
+			String incrementalDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"incremental";
+			FileUtil.deleteAllFile(incrementalDirectory);
+			FileUtil.createDirectory(incrementalDirectory);
+			Set<Integer> incrementalDexIdSet=new HashSet<Integer>();
+			Map<Integer, Map<String, String>> changedDexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
+			if(cache.incrementalClassNameByteArrayMap!=null&&!cache.incrementalClassNameByteArrayMap.isEmpty()){
+				Iterator<Entry<String,byte[]>> incrementalClassNameIterator=cache.incrementalClassNameByteArrayMap.entrySet().iterator();
+				int dexId=0;
+				while(incrementalClassNameIterator.hasNext()){
+					Entry<String,byte[]> incrementalEntry=incrementalClassNameIterator.next();
+					String className=incrementalEntry.getKey();
+					FileUtil.writeFile(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.SLASH_LEFT+className, incrementalEntry.getValue());
+					incrementalDexIdSet.add(dexId);
+
+					Map<String, String> changedClassNameMap=null;
+					if(changedDexIdClassNameMap.containsKey(dexId)){
+						changedClassNameMap=changedDexIdClassNameMap.get(dexId);
+					}else{
+						changedClassNameMap=new HashMap<String,String>();
+						changedDexIdClassNameMap.put(dexId, changedClassNameMap);
 					}
-				});
-				thread.start();
+					changedClassNameMap.put(className, className);
+				}
 			}
-			countDownLatch.await();
-			logger.info("Merge dex cost:"+(System.currentTimeMillis()-begin));
-			FileUtil.deleteAllFile(splitAndDxTempDirectory);
-		}catch(Exception e){
-			throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
+			if(cache.modifiedClassNameByteArrayMap!=null&&!cache.modifiedClassNameByteArrayMap.isEmpty()){
+				Iterator<Entry<String,byte[]>> modifiedClassNameIterator=cache.modifiedClassNameByteArrayMap.entrySet().iterator();
+				while(modifiedClassNameIterator.hasNext()){
+					Entry<String,byte[]> modifiedEntry=modifiedClassNameIterator.next();
+					String className=modifiedEntry.getKey();
+					Iterator<Entry<Integer, Map<String, String>>> dexIdClassNameIterator=cache.dexIdClassNameMap.entrySet().iterator();
+					while(dexIdClassNameIterator.hasNext()){
+						Entry<Integer, Map<String, String>> dexIdClassNameEntry=dexIdClassNameIterator.next();
+						int dexId=dexIdClassNameEntry.getKey();
+						Map<String, String> classNameMap=dexIdClassNameEntry.getValue();
+						if(classNameMap.containsKey(className)){
+							FileUtil.writeFile(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.SLASH_LEFT+modifiedEntry.getKey(), modifiedEntry.getValue());
+							incrementalDexIdSet.add(dexId);
+
+							Map<String, String> changedClassNameMap=null;
+							if(changedDexIdClassNameMap.containsKey(dexId)){
+								changedClassNameMap=changedDexIdClassNameMap.get(dexId);
+							}else{
+								changedClassNameMap=new HashMap<String,String>();
+								changedDexIdClassNameMap.put(dexId, changedClassNameMap);
+							}
+							changedClassNameMap.put(className, className);
+							break;
+						}
+					}
+				}
+			}
+			//dx
+			for(int dexId:incrementalDexIdSet){
+				String incrementalDexFullFilename=incrementalDirectory+Constant.Symbol.SLASH_LEFT+CLASSES+(dexId==0?StringUtil.BLANK:(dexId+1))+Constant.Symbol.DOT+DEX;
+				DexUtil.androidDx(incrementalDexFullFilename, Arrays.asList(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId), option.debug);
+				String dexFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+CLASSES+(dexId==0?StringUtil.BLANK:(dexId+1))+Constant.Symbol.DOT+DEX;
+				DexUtil.androidMergeDex(dexFullFilename, Arrays.asList(incrementalDexFullFilename, dexFullFilename));
+			}
+			//update cache
+			cache.dexIdClassNameMap.putAll(changedDexIdClassNameMap);
+			if(cache.incrementalClassNameByteArrayMap!=null){
+				cache.classNameByteArrayMap.putAll(cache.incrementalClassNameByteArrayMap);
+			}
+			if(cache.modifiedClassNameByteArrayMap!=null){
+				cache.classNameByteArrayMap.putAll(cache.modifiedClassNameByteArrayMap);
+			}
+		}else{
+			dexIdClassNameMap=autoDex(option, cache.classNameByteArrayMap, mainDexRootClassNameSet, null);
+			cache.dexIdClassNameMap.putAll(dexIdClassNameMap);
+			logger.info("Caculate total cost:"+(System.currentTimeMillis()-innerBegin));
+			try{
+				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
+				final Map<Integer,List<String>> subDexListMap=splitAndDx(cache.classNameByteArrayMap, splitAndDxTempDirectory, dexIdClassNameMap, option.debug);
+				//concurrent merge dex
+				innerBegin=System.currentTimeMillis();
+				final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
+				Set<Integer> dexIdSet=subDexListMap.keySet();
+				for(final int dexId:dexIdSet){
+					String dexOutputDirectory=outputDirectory;
+					String dexFullFilename=null;
+					if(dexId==0){
+						dexFullFilename=dexOutputDirectory+"/"+CLASSES+Constant.Symbol.DOT+DEX;
+					}else{
+						dexFullFilename=dexOutputDirectory+"/"+CLASSES+(dexId+1)+Constant.Symbol.DOT+DEX;
+					}
+					final String finalDexFullFilename=dexFullFilename;
+					Thread thread=new Thread(new Runnable(){
+						public void run() {
+							try{
+								DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
+							}catch(Exception e){
+								logger.error(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage(), e);
+							}
+							countDownLatch.countDown();
+						}
+					});
+					thread.start();
+				}
+				countDownLatch.await();
+				logger.info("Merge dex cost:"+(System.currentTimeMillis()-innerBegin));
+				FileUtil.deleteAllFile(splitAndDxTempDirectory);
+			}catch(Exception e){
+				throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
+			}
 		}
-//			ZipFile zipFile = null;
-//			try{
-//				zipFile=new ZipFile(allClassesJar);
-//				FileUtil.createDirectory(outputDirectory);
-//				Iterator<Entry<Integer, Map<String, String>>> iterator=dexIdClassNameMap.entrySet().iterator();
-//				while(iterator.hasNext()){
-//					Entry<Integer, Map<String, String>> entry=iterator.next();
-//					int dexId=entry.getKey();
-//					final Set<String> classNameSet=entry.getValue().keySet();
-//					String classesJar=null;
-//					String classNameTxt=null;
-//					OutputStream classNameTxtOutputStream=null;
-//					try{
-//						classNameTxt=outputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.TXT;
-//						FileUtil.createFile(classNameTxt);
-//						Properties classNameProperties=new Properties();
-//						classesJar=outputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.JAR;
-//						classesJar=new File(classesJar).getAbsolutePath();
-//						FileUtil.createFile(classesJar);
-//						ZipOutputStream dexJarOutputStream=new ZipOutputStream(new FileOutputStream(classesJar));
-//						for(String className:classNameSet){
-//							ZipEntry zipEntry=zipFile.getEntry(className);
-//							InputStream inputStream=zipFile.getInputStream(zipEntry);
-//							ZipEntry newZipEntry=new ZipEntry(zipEntry.getName());
-//							FileUtil.addZipEntry(dexJarOutputStream, newZipEntry, inputStream);
-//							classNameProperties.put(className, classesJar);
-//						}
-//						if(dexJarOutputStream!=null){
-//							dexJarOutputStream.flush();
-//							dexJarOutputStream.close();
-//						}
-//						classNameTxtOutputStream=new FileOutputStream(classNameTxt);
-//						classNameProperties.store(classNameTxtOutputStream, null);
-//						String classesDex=outputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.DEX;
-//						DexUtil.androidDx(classesDex, Arrays.asList(classesJar), debug);
-//					}catch (Exception e) {
-//						throw new AutoDexUtilException(classesJar,e);
-//					}finally{
-//						if(classNameTxtOutputStream!=null){
-//							try {
-//								classNameTxtOutputStream.flush();
-//								classNameTxtOutputStream.close();
-//							} catch (Exception e) {
-//								throw new AutoDexUtilException(classNameTxt,e);
-//							}
-//						}
-//					}
-//				}
-//			}catch(Exception e){
-//				throw new AutoDexUtilException(e);
-//			}finally{
-//				if(zipFile!=null){
-//					try {
-//						zipFile.close();
-//					} catch (Exception e) {
-//						throw new AutoDexUtilException(e);
-//					}
-//				}
-//			}
+		try {
+			ObjectUtil.writeObject(cache, new FileOutputStream(cacheFullFilename));
+		} catch (Exception e) {
+			logger.error("Write cache exception.", e);
+		}
+		logger.info("Auto dex cost:"+(System.currentTimeMillis()-outerBegin));
 	}
 
 	/**
@@ -448,7 +429,7 @@ public final class AutoDexUtil {
 	 * @param fieldProcessor
 	 * @return Map<Integer, Map<String,String>>, <dexId,classNameMap>
 	 */
-	public static Map<Integer,Map<String,String>> autoDex(Map<String, byte[]> classNameByteArrayMap,Set<String> mainDexRootClassNameSet, final int fieldLimit, final int methodLimit, final int linearAllocLimit, final boolean debug, final boolean autoByPackage, final FieldProcessor fieldProcessor){
+	private static Map<Integer,Map<String,String>> autoDex(Option option, Map<String, byte[]> classNameByteArrayMap, Set<String> mainDexRootClassNameSet, final FieldProcessor fieldProcessor){
 		final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 		try{
 			long begin=System.currentTimeMillis();
@@ -467,7 +448,7 @@ public final class AutoDexUtil {
 			}
 			logger.info("Find all class description cost:"+(System.currentTimeMillis()-begin));
 			Map<String, List<String>> samePackageClassNameListMap=null;
-			if(autoByPackage){
+			if(option.autoByPackage){
 				samePackageClassNameListMap=findAllSamePackageClassNameListMap(classDescriptionMap);
 			}
 			//main dex
@@ -480,14 +461,20 @@ public final class AutoDexUtil {
 				dexQueue.add(0);
 				final Map<Integer,AllocStat> dexAllocStatMap=new HashMap<Integer,AllocStat>();
 				int autoDexId=0;
+				boolean mustMainDex=true;
 				while(!dexQueue.isEmpty()){
 					Integer dexId=dexQueue.poll();
 					Set<String> rootClassNameSet=dexClassRootSetMap.get(dexId);
 					Map<String,String> dependClassNameMap=null;
-					if(autoByPackage){
+					if(option.autoByPackage){
 						dependClassNameMap=findAllSamePackageClassNameMap(rootClassNameSet, samePackageClassNameListMap);
 					}else{
-						dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap);
+						if(mustMainDex){
+							mustMainDex=false;
+							dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, true);
+						}else{
+							dependClassNameMap=AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !option.debug);
+						}
 					}
 					//先算这一垞有多少个方法数和linear
 					AllocStat thisTimeAllocStat=new AllocStat();
@@ -522,9 +509,9 @@ public final class AutoDexUtil {
 						dexAllocStatMap.put(dexId, dexTotalAllocStat);
 					}
 					//因为dexId=0只会循环一次，所以如果还有类没分完，而且当前是dexId=0的话就开始第二个dex,此注释已过期,现在优先把主dex撑满
-					int tempFieldLimit=fieldLimit;
-					int tempMethodLimit=methodLimit;
-					int tempLinearAllocLimit=linearAllocLimit;
+					int tempFieldLimit=option.fieldLimit;
+					int tempMethodLimit=option.methodLimit;
+					int tempLinearAllocLimit=option.linearAllocLimit;
 					if(dexId==0){
 						int thisTimeFieldLimit=thisTimeAllocStat.getFieldReferenceMap().size();
 						int thisTimeMethodLimit=thisTimeAllocStat.getMethodReferenceMap().size();
@@ -539,17 +526,25 @@ public final class AutoDexUtil {
 							tempLinearAllocLimit=thisTimeTotalAlloc;
 						}
 					}
-//					if(dexId==0){
-//						dexTotalAllocStat.setTotalAlloc(dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc());
-//						dexTotalAllocStat.getMethodReferenceMap().putAll(thisTimeAllocStat.getMethodReferenceMap());
-//						//add to current dex class name map
-//						if(!dexIdClassNameMap.containsKey(dexId)){
-//							dexIdClassNameMap.put(dexId, dependClassNameMap);
-//						}
-//						//and put the this time alloc stat to dex all stat map
-//						dexAllocStatMap.put(dexId, thisTimeAllocStat);
-//						autoDexId++;
-//					}else{//不是主dex的时候才要考虑合并计算
+					boolean normalCaculate=false;
+					if(option.minMainDex){
+						if(dexId==0){
+							dexTotalAllocStat.setTotalAlloc(dexTotalAllocStat.getTotalAlloc()+thisTimeAllocStat.getTotalAlloc());
+							dexTotalAllocStat.getMethodReferenceMap().putAll(thisTimeAllocStat.getMethodReferenceMap());
+							//add to current dex class name map
+							if(!dexIdClassNameMap.containsKey(dexId)){
+								dexIdClassNameMap.put(dexId, dependClassNameMap);
+							}
+							//and put the this time alloc stat to dex all stat map
+							dexAllocStatMap.put(dexId, thisTimeAllocStat);
+							autoDexId++;
+						}else{
+							normalCaculate=true;
+						}
+					}else{
+						normalCaculate=true;
+					}
+					if(normalCaculate){//不是主dex的时候才要考虑合并计算
 						//先clone原有的map，然后合并估算一下
 						Map<String,String> oldFieldReferenceMap=dexTotalAllocStat.getFieldReferenceMap();
 						Map<String,String> oldMethodReferenceMap=dexTotalAllocStat.getMethodReferenceMap();
@@ -578,7 +573,7 @@ public final class AutoDexUtil {
 							//and put the this time alloc stat to dex all stat map
 							dexAllocStatMap.put(autoDexId, thisTimeAllocStat);
 						}
-//					}
+					}
 					//autoDexId不变的时候还要继续当前dex
 					Set<String> remainKeySet=allClassNameMap.keySet();
 					for(String key:remainKeySet){
@@ -636,6 +631,8 @@ public final class AutoDexUtil {
 							try{
 								classNameTxt=parentOutputDirectory+"/"+dexId+Constant.Symbol.DOT+Constant.File.TXT;
 								jarSubDexNameTxt=outputDirectory+"/"+dexId+Constant.File.JAR+Constant.Symbol.DOT+Constant.File.TXT;
+								FileUtil.createFile(classNameTxt);
+								FileUtil.createFile(jarSubDexNameTxt);
 								Properties classNameProperties=new Properties();
 								Properties jarSubDexNameProperties=new Properties();
 								for(String className:classNameSet){
@@ -794,16 +791,17 @@ public final class AutoDexUtil {
 
 	/**
 	 * read all combined class
-	 * @param combinedClassSet
+	 * @param combinedClassList
 	 * @return AutoDexCache
 	 */
-	private static AutoDexCache readAllCombinedClass(Set<String> combinedClassSet){
+	private static Cache readAllCombinedClass(List<String> combinedClassList){
 		Map<String, byte[]> classNameByteArrayMap=new HashMap<String,byte[]>();
-		if(combinedClassSet!=null){
-			for(String combinedClassFullFilename:combinedClassSet){
+		if(combinedClassList!=null){
+			for(String combinedClassFullFilename:combinedClassList){
 				File combinedClassFile=new File(combinedClassFullFilename);
 				combinedClassFullFilename=combinedClassFile.getAbsolutePath();
 				if(combinedClassFile.isFile()&&combinedClassFile.getName().endsWith(Constant.Symbol.DOT+Constant.File.JAR)){
+					logger.debug("Reading jar combined class:"+combinedClassFullFilename);
 					ZipFile zipFile = null;
 					try{
 						zipFile = new ZipFile(combinedClassFile.getAbsolutePath());
@@ -844,6 +842,7 @@ public final class AutoDexUtil {
 						}
 					}
 				}else if(combinedClassFile.isDirectory()){
+					logger.debug("Reading directory combined class:"+combinedClassFullFilename);
 					String combiledClassRootPath=combinedClassFile.getAbsolutePath();
 					List<String> allClassFullFilenameList=FileUtil.findMatchFile(combiledClassRootPath, Constant.Symbol.DOT+Constant.File.CLASS);
 					if(allClassFullFilenameList!=null){
@@ -859,58 +858,59 @@ public final class AutoDexUtil {
 				}
 			}
 		}
-		return new AutoDexCache(classNameByteArrayMap);
+		return new Cache(classNameByteArrayMap);
 	}
 
 	/**
 	 * read all combined class
-	 * @param combinedClassSet
+	 * @param combinedClassList
+	 * @param cacheFullFilename
 	 */
-	private static AutoDexCache readAllCombinedClass(Set<String> combinedClassSet, String cacheFullFilename){
+	private static Cache readAllCombinedClass(List<String> combinedClassList, String cacheFullFilename){
 		long begin=System.currentTimeMillis();
-		AutoDexCache autoDexCache=null;
+		Cache cache=null;
 		if(FileUtil.isExist(cacheFullFilename)){
 			try{
-				autoDexCache=(AutoDexCache)ObjectUtil.readObject(new FileInputStream(cacheFullFilename));
+				cache=(Cache)ObjectUtil.readObject(new FileInputStream(cacheFullFilename));
 			}catch(Exception e){
 				logger.error("Read cache exception.", e);
 			}
 		}
-		if(autoDexCache==null){
-			autoDexCache=readAllCombinedClass(combinedClassSet);
+		if(cache==null){
+			cache=readAllCombinedClass(combinedClassList);
 		}else{//has cache
 			//need to update cache
 			Map<String, byte[]> incrementalClassNameByteArrayMap=new HashMap<String,byte[]>();
-			AutoDexCache newAutoDexCache=readAllCombinedClass(combinedClassSet);
+			Map<String, byte[]> modifiedClassNameByteArrayMap=new HashMap<String,byte[]>();
+			Cache newAutoDexCache=readAllCombinedClass(combinedClassList);
 			Iterator<Entry<String,byte[]>> newIterator=newAutoDexCache.classNameByteArrayMap.entrySet().iterator();
 			while(newIterator.hasNext()){
 				Entry<String, byte[]> newEntry=newIterator.next();
 				String newClassName=newEntry.getKey();
 				byte[] newByteArray=newEntry.getValue();
 				String newClassFileMd5=Generator.MD5(new ByteArrayInputStream(newByteArray));
-				if(autoDexCache.classNameByteArrayMap.containsKey(newClassName)){
-					byte[] byteArray=autoDexCache.classNameByteArrayMap.get(newClassName);
+				if(cache.classNameByteArrayMap.containsKey(newClassName)){
+					byte[] byteArray=cache.classNameByteArrayMap.get(newClassName);
 					String oldClassFileMd5=Generator.MD5(new ByteArrayInputStream(byteArray));
 					if(!newClassFileMd5.equals(oldClassFileMd5)){
-						logger.info("It is a modify class:"+newClassName);
-						incrementalClassNameByteArrayMap.put(newClassName, newByteArray);
+						logger.debug("It is a modify class:"+newClassName);
+						modifiedClassNameByteArrayMap.put(newClassName, newByteArray);
 					}else{
 						logger.verbose("It is a same class:"+newClassName);
 					}
 				}else{
-					logger.info("It is a new class:"+newClassName);
+					logger.debug("It is a new class:"+newClassName);
 					incrementalClassNameByteArrayMap.put(newClassName, newByteArray);
 				}
 			}
-			autoDexCache.incrementalClassNameByteArrayMap=incrementalClassNameByteArrayMap;
-		}
-		try {
-			ObjectUtil.writeObject(autoDexCache, new FileOutputStream(cacheFullFilename));
-		} catch (Exception e) {
-			logger.error("Write cache exception.", e);
+			cache.incrementalClassNameByteArrayMap=incrementalClassNameByteArrayMap;
+			cache.modifiedClassNameByteArrayMap=modifiedClassNameByteArrayMap;
+			logger.info("Incremental class size:"+cache.incrementalClassNameByteArrayMap.size());
+			logger.info("Modified class size:"+cache.modifiedClassNameByteArrayMap.size());
 		}
 		logger.info("Read all class file cost:"+(System.currentTimeMillis()-begin));
-		return autoDexCache;
+		logger.info("Cache dex size:"+cache.dexIdClassNameMap.size());
+		return cache;
 	}
 
 	/**
@@ -953,11 +953,38 @@ public final class AutoDexUtil {
 		return allClassSet;
 	}
 
-	public static class AutoDexCache implements Serializable{
+	public static final class Option{
+		public static final int DEFAULT_FIELD_LIMIT=0xFFD0;//dex field must less than 65536,but field stat always less then in
+		public static final int DEFAULT_METHOD_LIMIT=0xFFFF;//dex must less than 65536,55000 is more safer then 65535
+		public static final int DEFAULT_LINEAR_ALLOC_LIMIT=Integer.MAX_VALUE;
+		public List<String> combinedClassList=null;
+		public String androidManifestFullFilename=null;
+		public List<String> mainDexOtherClassList=null;
+		public String outputDirectory=null;
+		public boolean debug=true;
+		public boolean attachBaseContext=true;
+		public boolean autoByPackage=false;
+		public boolean minMainDex=true;
+		public int fieldLimit=DEFAULT_FIELD_LIMIT;
+		public int methodLimit=DEFAULT_METHOD_LIMIT;
+		public int linearAllocLimit=DEFAULT_LINEAR_ALLOC_LIMIT;
+		public Option(List<String> combinedClassList, String androidManifestFullFilename, String outputDirectory, boolean debug) {
+			this.combinedClassList=combinedClassList;
+			this.androidManifestFullFilename=androidManifestFullFilename;
+			this.outputDirectory=outputDirectory;
+			this.debug=debug;
+			this.fieldLimit=this.debug?(DEFAULT_FIELD_LIMIT-0x200):DEFAULT_FIELD_LIMIT;
+			this.methodLimit=this.debug?(DEFAULT_METHOD_LIMIT-0x200):DEFAULT_METHOD_LIMIT;
+		}
+	}
+
+	public static final class Cache implements Serializable{
 		private static final long serialVersionUID = 5668038330717176798L;
-		public final Map<String,byte[]> classNameByteArrayMap;
+		private final Map<String,byte[]> classNameByteArrayMap;
+		private final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 		public volatile Map<String,byte[]> incrementalClassNameByteArrayMap=null;
-		public AutoDexCache(Map<String,byte[]> classNameByteArrayMap) {
+		public volatile Map<String,byte[]> modifiedClassNameByteArrayMap=null;
+		public Cache(Map<String,byte[]> classNameByteArrayMap) {
 			this.classNameByteArrayMap=classNameByteArrayMap;
 		}
 	}
