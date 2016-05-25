@@ -5,11 +5,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -46,7 +44,9 @@ import com.oneliang.tools.dex.DexUtil;
 import com.oneliang.tools.linearalloc.AllocClassVisitor.MethodReference;
 import com.oneliang.tools.linearalloc.LinearAllocUtil;
 import com.oneliang.tools.linearalloc.LinearAllocUtil.AllocStat;
+import com.oneliang.util.common.Generator;
 import com.oneliang.util.common.JavaXmlUtil;
+import com.oneliang.util.common.ObjectUtil;
 import com.oneliang.util.common.StringUtil;
 import com.oneliang.util.file.FileUtil;
 import com.oneliang.util.logging.Logger;
@@ -325,26 +325,25 @@ public final class AutoDexUtil {
 			packageName=parsePackageName(androidManifestFullFilename);
 		}
 		//read all combined class
-		String classNameByteArrayMapCacheFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+"classNameByteArrayMap.txt";
-		String classNameFilenameMapCacheFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+"classNameFilenameMap.txt";
-		CombinedClassCache combinedClassCache=readAllCombinedClass(combinedClassSet, classNameByteArrayMapCacheFullFilename, classNameFilenameMapCacheFullFilename);
+		String cacheFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+"cache.txt";
+		AutoDexCache autoDexCache=readAllCombinedClass(combinedClassSet, cacheFullFilename);
 		//find main root class
 		if(mainDexOtherClassList!=null){
 			classNameList.addAll(mainDexOtherClassList);
 		}
 		Set<String> mainDexRootClassNameList=new HashSet<String>();
 		if(combinedClassSet!=null){
-			mainDexRootClassNameList.addAll(findMainRootClassSet(combinedClassCache.classNameByteArrayMap.keySet(), packageName, classNameList));
+			mainDexRootClassNameList.addAll(findMainRootClassSet(autoDexCache.classNameByteArrayMap.keySet(), packageName, classNameList));
 		}
 		for(String className:mainDexRootClassNameList){
 			logger.verbose("main root class:"+className);
 		}
 		//find all layout xml
-		final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(combinedClassCache.classNameByteArrayMap, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
+		final Map<Integer,Map<String,String>> dexIdClassNameMap=autoDex(autoDexCache.classNameByteArrayMap, mainDexRootClassNameList, fieldLimit, methodLimit, linearAllocLimit, debug, autoByPackage, null);
 		logger.info("Caculate total cost:"+(System.currentTimeMillis()-begin));
 		try{
 			String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
-			final Map<Integer,List<String>> subDexListMap=splitAndDx(combinedClassCache.classNameByteArrayMap, splitAndDxTempDirectory, dexIdClassNameMap, debug);
+			final Map<Integer,List<String>> subDexListMap=splitAndDx(autoDexCache.classNameByteArrayMap, splitAndDxTempDirectory, dexIdClassNameMap, debug);
 			//concurrent merge dex
 			begin=System.currentTimeMillis();
 			final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
@@ -796,115 +795,122 @@ public final class AutoDexUtil {
 	/**
 	 * read all combined class
 	 * @param combinedClassSet
+	 * @return AutoDexCache
 	 */
-	private static CombinedClassCache readAllCombinedClass(Set<String> combinedClassSet, String classNameByteArrayMapCacheFullFilename,String classNameFilenameMapCacheFullFilename){
+	private static AutoDexCache readAllCombinedClass(Set<String> combinedClassSet){
 		Map<String, byte[]> classNameByteArrayMap=new HashMap<String,byte[]>();
-		Map<String, String> classNameFilenameMap=new HashMap<String,String>();
-		if(FileUtil.isExist(classNameByteArrayMapCacheFullFilename)&&FileUtil.isExist(classNameFilenameMapCacheFullFilename)){
-			ObjectInputStream classNameByteArrayMapObjectInputStream=null;
-			ObjectInputStream classNameFilenameMapObjectInputStream=null;
-			try{
-				classNameByteArrayMapObjectInputStream=new ObjectInputStream(new FileInputStream(classNameByteArrayMapCacheFullFilename));
-				classNameFilenameMapObjectInputStream=new ObjectInputStream(new FileInputStream(classNameByteArrayMapCacheFullFilename));
-				classNameByteArrayMap.putAll((Map<String, byte[]>)classNameByteArrayMapObjectInputStream.readObject());
-				classNameFilenameMap.putAll((Map<String, String>)classNameFilenameMapObjectInputStream.readObject());
-			}catch(Exception e){
-				logger.error("Read cache exception.", e);
-			}finally{
-				if(classNameByteArrayMapObjectInputStream!=null){
-					try {
-						classNameByteArrayMapObjectInputStream.close();
-					} catch (IOException e) {
-						logger.error("Close exception.", e);
-					}
-				}
-				if(classNameFilenameMapObjectInputStream!=null){
-					try {
-						classNameFilenameMapObjectInputStream.close();
-					} catch (IOException e) {
-						logger.error("Close exception.", e);
-					}
-				}
-			}
-		}
-		if(classNameByteArrayMap.isEmpty()&&classNameFilenameMap.isEmpty()){
-			long begin=System.currentTimeMillis();
-			if(combinedClassSet!=null){
-				for(String combinedClassFullFilename:combinedClassSet){
-					File combinedClassFile=new File(combinedClassFullFilename);
-					combinedClassFullFilename=combinedClassFile.getAbsolutePath();
-					if(combinedClassFile.isFile()&&combinedClassFile.getName().endsWith(Constant.Symbol.DOT+Constant.File.JAR)){
-						ZipFile zipFile = null;
-						try{
-							zipFile = new ZipFile(combinedClassFile.getAbsolutePath());
-							Enumeration<? extends ZipEntry> enumeration = zipFile.entries();
-							while (enumeration.hasMoreElements()) {
-								ZipEntry zipEntry = enumeration.nextElement();
-								String zipEntryName = zipEntry.getName();
-								if(zipEntryName.endsWith(Constant.Symbol.DOT+Constant.File.CLASS)){
-									InputStream inputStream=null;
-									try{
-										inputStream=zipFile.getInputStream(zipEntry);
-										ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
-										FileUtil.copyStream(inputStream, byteArrayOutputStream);
-										logger.verbose(zipEntryName+","+byteArrayOutputStream.toByteArray().length);
-										classNameByteArrayMap.put(zipEntryName, byteArrayOutputStream.toByteArray());
-										classNameFilenameMap.put(zipEntryName, combinedClassFullFilename);
-									}catch(Exception e){
-										logger.error("Exception:"+zipEntryName, e);
-									}finally{
-										if(inputStream!=null){
-											try{
-												inputStream.close();
-											}catch (Exception e) {
-												logger.error("Close exception:"+zipEntryName, e);
-											}
+		if(combinedClassSet!=null){
+			for(String combinedClassFullFilename:combinedClassSet){
+				File combinedClassFile=new File(combinedClassFullFilename);
+				combinedClassFullFilename=combinedClassFile.getAbsolutePath();
+				if(combinedClassFile.isFile()&&combinedClassFile.getName().endsWith(Constant.Symbol.DOT+Constant.File.JAR)){
+					ZipFile zipFile = null;
+					try{
+						zipFile = new ZipFile(combinedClassFile.getAbsolutePath());
+						Enumeration<? extends ZipEntry> enumeration = zipFile.entries();
+						while (enumeration.hasMoreElements()) {
+							ZipEntry zipEntry = enumeration.nextElement();
+							String zipEntryName = zipEntry.getName();
+							if(zipEntryName.endsWith(Constant.Symbol.DOT+Constant.File.CLASS)){
+								InputStream inputStream=null;
+								try{
+									inputStream=zipFile.getInputStream(zipEntry);
+									ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
+									FileUtil.copyStream(inputStream, byteArrayOutputStream);
+									logger.verbose(zipEntryName+","+byteArrayOutputStream.toByteArray().length);
+									classNameByteArrayMap.put(zipEntryName, byteArrayOutputStream.toByteArray());
+								}catch(Exception e){
+									logger.error("Exception:"+zipEntryName, e);
+								}finally{
+									if(inputStream!=null){
+										try{
+											inputStream.close();
+										}catch (Exception e) {
+											logger.error("Close exception:"+zipEntryName, e);
 										}
 									}
 								}
 							}
-						}catch(Exception e){
-							throw new AutoDexUtilException(e);
-						}finally{
-							if(zipFile!=null){
-								try {
-									zipFile.close();
-								} catch (Exception e) {
-									throw new AutoDexUtilException(e);
-								}
+						}
+					}catch(Exception e){
+						throw new AutoDexUtilException(e);
+					}finally{
+						if(zipFile!=null){
+							try {
+								zipFile.close();
+							} catch (Exception e) {
+								throw new AutoDexUtilException(e);
 							}
 						}
-					}else if(combinedClassFile.isDirectory()){
-						String combiledClassRootPath=combinedClassFile.getAbsolutePath();
-						List<String> allClassFullFilenameList=FileUtil.findMatchFile(combiledClassRootPath, Constant.Symbol.DOT+Constant.File.CLASS);
-						if(allClassFullFilenameList!=null){
-							combiledClassRootPath=new File(combiledClassRootPath).getAbsolutePath();
-							for(String classFullFilename:allClassFullFilenameList){
-								classFullFilename=new File(classFullFilename).getAbsolutePath();
-								String relativeClassFilename=classFullFilename.substring(combiledClassRootPath.length()+1);
-								relativeClassFilename=relativeClassFilename.replace(Constant.Symbol.SLASH_RIGHT, Constant.Symbol.SLASH_LEFT);
-								byte[] byteArray=FileUtil.readFile(classFullFilename);
-								classNameByteArrayMap.put(relativeClassFilename, byteArray);
-								classNameFilenameMap.put(relativeClassFilename, combinedClassFullFilename);
-							}
+					}
+				}else if(combinedClassFile.isDirectory()){
+					String combiledClassRootPath=combinedClassFile.getAbsolutePath();
+					List<String> allClassFullFilenameList=FileUtil.findMatchFile(combiledClassRootPath, Constant.Symbol.DOT+Constant.File.CLASS);
+					if(allClassFullFilenameList!=null){
+						combiledClassRootPath=new File(combiledClassRootPath).getAbsolutePath();
+						for(String classFullFilename:allClassFullFilenameList){
+							classFullFilename=new File(classFullFilename).getAbsolutePath();
+							String relativeClassFilename=classFullFilename.substring(combiledClassRootPath.length()+1);
+							relativeClassFilename=relativeClassFilename.replace(Constant.Symbol.SLASH_RIGHT, Constant.Symbol.SLASH_LEFT);
+							byte[] byteArray=FileUtil.readFile(classFullFilename);
+							classNameByteArrayMap.put(relativeClassFilename, byteArray);
 						}
 					}
 				}
 			}
-			logger.info("Read all class file cost:"+(System.currentTimeMillis()-begin));
 		}
-//		try{
-//			ObjectOutputStream a=new ObjectOutputStream(new FileOutputStream("/D:/classNameByteArrayMap.txt"));
-//			ObjectOutputStream b=new ObjectOutputStream(new FileOutputStream("/D:/classNameFilenameMap.txt"));
-//			a.writeObject(classNameByteArrayMap);
-//			b.writeObject(classNameFilenameMap);
-//			a.close();
-//			b.close();
-//			logger.info("Read all class file cost:"+(System.currentTimeMillis()-begin));
-//		}catch(Exception e){
-//			e.printStackTrace();
-//		}
-		return new CombinedClassCache(classNameByteArrayMap, classNameFilenameMap);
+		return new AutoDexCache(classNameByteArrayMap);
+	}
+
+	/**
+	 * read all combined class
+	 * @param combinedClassSet
+	 */
+	private static AutoDexCache readAllCombinedClass(Set<String> combinedClassSet, String cacheFullFilename){
+		long begin=System.currentTimeMillis();
+		AutoDexCache autoDexCache=null;
+		if(FileUtil.isExist(cacheFullFilename)){
+			try{
+				autoDexCache=(AutoDexCache)ObjectUtil.readObject(new FileInputStream(cacheFullFilename));
+			}catch(Exception e){
+				logger.error("Read cache exception.", e);
+			}
+		}
+		if(autoDexCache==null){
+			autoDexCache=readAllCombinedClass(combinedClassSet);
+		}else{//has cache
+			//need to update cache
+			Map<String, byte[]> incrementalClassNameByteArrayMap=new HashMap<String,byte[]>();
+			AutoDexCache newAutoDexCache=readAllCombinedClass(combinedClassSet);
+			Iterator<Entry<String,byte[]>> newIterator=newAutoDexCache.classNameByteArrayMap.entrySet().iterator();
+			while(newIterator.hasNext()){
+				Entry<String, byte[]> newEntry=newIterator.next();
+				String newClassName=newEntry.getKey();
+				byte[] newByteArray=newEntry.getValue();
+				String newClassFileMd5=Generator.MD5(new ByteArrayInputStream(newByteArray));
+				if(autoDexCache.classNameByteArrayMap.containsKey(newClassName)){
+					byte[] byteArray=autoDexCache.classNameByteArrayMap.get(newClassName);
+					String oldClassFileMd5=Generator.MD5(new ByteArrayInputStream(byteArray));
+					if(!newClassFileMd5.equals(oldClassFileMd5)){
+						logger.info("It is a modify class:"+newClassName);
+						incrementalClassNameByteArrayMap.put(newClassName, newByteArray);
+					}else{
+						logger.verbose("It is a same class:"+newClassName);
+					}
+				}else{
+					logger.info("It is a new class:"+newClassName);
+					incrementalClassNameByteArrayMap.put(newClassName, newByteArray);
+				}
+			}
+			autoDexCache.incrementalClassNameByteArrayMap=incrementalClassNameByteArrayMap;
+		}
+		try {
+			ObjectUtil.writeObject(autoDexCache, new FileOutputStream(cacheFullFilename));
+		} catch (Exception e) {
+			logger.error("Write cache exception.", e);
+		}
+		logger.info("Read all class file cost:"+(System.currentTimeMillis()-begin));
+		return autoDexCache;
 	}
 
 	/**
@@ -947,12 +953,12 @@ public final class AutoDexUtil {
 		return allClassSet;
 	}
 
-	public static class CombinedClassCache{
+	public static class AutoDexCache implements Serializable{
+		private static final long serialVersionUID = 5668038330717176798L;
 		public final Map<String,byte[]> classNameByteArrayMap;
-		public final Map<String, String> classNameFilenameMap;
-		public CombinedClassCache(Map<String,byte[]> classNameByteArrayMap,Map<String, String> classNameFilenameMap) {
+		public volatile Map<String,byte[]> incrementalClassNameByteArrayMap=null;
+		public AutoDexCache(Map<String,byte[]> classNameByteArrayMap) {
 			this.classNameByteArrayMap=classNameByteArrayMap;
-			this.classNameFilenameMap=classNameFilenameMap;
 		}
 	}
 
