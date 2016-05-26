@@ -1009,7 +1009,7 @@ public final class AutoDexUtil {
 				cache.changedClassNameByteArrayMd5Map=newCache.classNameByteArrayMd5Map;
 				cache.incrementalClassNameByteArrayMap=newCache.incrementalClassNameByteArrayMap;
 				cache.modifiedClassNameByteArrayMap=newCache.modifiedClassNameByteArrayMap;
-				logger.info("Changed class size:"+cache.classNameByteArrayMd5Map.size());
+				logger.info("Changed class size:"+cache.changedClassNameByteArrayMd5Map.size());
 				logger.info("Incremental class size:"+cache.incrementalClassNameByteArrayMap.size());
 				logger.info("Modified class size:"+cache.modifiedClassNameByteArrayMap.size());
 			}
