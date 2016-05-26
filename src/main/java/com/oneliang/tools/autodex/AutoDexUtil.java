@@ -849,7 +849,7 @@ public final class AutoDexUtil {
 		final int CACHE_TYPE_MODIFY=3;
 		
 		Map<String, byte[]> classNameByteArrayMap=new HashMap<String,byte[]>();
-		Map<String, String> changedClassNameByteArrayMd5Map=new HashMap<String,String>();
+		Map<String, String> classNameByteArrayMd5Map=new HashMap<String,String>();
 		Map<String, byte[]> incrementalClassNameByteArrayMap=new HashMap<String,byte[]>();
 		Map<String, byte[]> modifiedClassNameByteArrayMap=new HashMap<String,byte[]>();
 		if(combinedClassList!=null){
@@ -894,7 +894,7 @@ public final class AutoDexUtil {
 										byte[] byteArray=byteArrayOutputStream.toByteArray();
 										logger.verbose(zipEntryName+","+byteArray.length);
 										classNameByteArrayMap.put(zipEntryName, byteArray);
-										changedClassNameByteArrayMd5Map.put(zipEntryName, StringUtil.byteArrayToHexString(Generator.MD5ByteArray(byteArray)));
+										classNameByteArrayMd5Map.put(zipEntryName, StringUtil.byteArrayToHexString(Generator.MD5ByteArray(byteArray)));
 										switch (cacheType) {
 										case CACHE_TYPE_INCREMENTAL:
 											incrementalClassNameByteArrayMap.put(zipEntryName, byteArray);
@@ -960,7 +960,7 @@ public final class AutoDexUtil {
 							if(cacheType!=CACHE_TYPE_DEFAULT){
 								byte[] byteArray=FileUtil.readFile(classFullFilename);
 								classNameByteArrayMap.put(relativeClassFilename, byteArray);
-								changedClassNameByteArrayMd5Map.put(relativeClassFilename, StringUtil.byteArrayToHexString(Generator.MD5ByteArray(byteArray)));
+								classNameByteArrayMd5Map.put(relativeClassFilename, StringUtil.byteArrayToHexString(Generator.MD5ByteArray(byteArray)));
 
 								switch (cacheType) {
 								case CACHE_TYPE_INCREMENTAL:
@@ -976,8 +976,8 @@ public final class AutoDexUtil {
 				}
 			}
 		}
-		Cache cache=new Cache(classNameByteArrayMap, changedClassNameByteArrayMd5Map);
-		cache.changedClassNameByteArrayMd5Map=changedClassNameByteArrayMd5Map;
+		Cache cache=new Cache(classNameByteArrayMap, classNameByteArrayMd5Map);
+		cache.changedClassNameByteArrayMd5Map=classNameByteArrayMd5Map;
 		cache.incrementalClassNameByteArrayMap=incrementalClassNameByteArrayMap;
 		cache.modifiedClassNameByteArrayMap=modifiedClassNameByteArrayMap;
 		return cache;
@@ -1006,7 +1006,7 @@ public final class AutoDexUtil {
 //			Map<String, byte[]> modifiedClassNameByteArrayMap=new HashMap<String,byte[]>();
 			Cache newCache=readAllCombinedClassWithCache(combinedClassList, cache);
 			if(newCache!=null){
-				cache.changedClassNameByteArrayMd5Map=newCache.classNameByteArrayMd5Map;
+				cache.changedClassNameByteArrayMd5Map=newCache.changedClassNameByteArrayMd5Map;
 				cache.incrementalClassNameByteArrayMap=newCache.incrementalClassNameByteArrayMap;
 				cache.modifiedClassNameByteArrayMap=newCache.modifiedClassNameByteArrayMap;
 				logger.info("Changed class size:"+cache.changedClassNameByteArrayMd5Map.size());
