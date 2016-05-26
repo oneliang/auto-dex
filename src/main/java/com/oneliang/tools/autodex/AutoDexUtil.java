@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
@@ -309,15 +310,15 @@ public final class AutoDexUtil {
 			FileUtil.createDirectory(incrementalDirectory);
 			Set<Integer> incrementalDexIdSet=new HashSet<Integer>();
 			Map<Integer, Map<String, String>> changedDexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
+			Map<Integer,Map<String,byte[]>> dexIdClassNameByteArrayMap=new HashMap<Integer,Map<String,byte[]>>();
 			if(cache.incrementalClassNameByteArrayMap!=null&&!cache.incrementalClassNameByteArrayMap.isEmpty()){
 				Iterator<Entry<String,byte[]>> incrementalClassNameIterator=cache.incrementalClassNameByteArrayMap.entrySet().iterator();
 				int dexId=0;
 				while(incrementalClassNameIterator.hasNext()){
 					Entry<String,byte[]> incrementalEntry=incrementalClassNameIterator.next();
 					String className=incrementalEntry.getKey();
-					FileUtil.writeFile(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.SLASH_LEFT+className, incrementalEntry.getValue());
 					incrementalDexIdSet.add(dexId);
-
+					
 					Map<String, String> changedClassNameMap=null;
 					if(changedDexIdClassNameMap.containsKey(dexId)){
 						changedClassNameMap=changedDexIdClassNameMap.get(dexId);
@@ -326,6 +327,15 @@ public final class AutoDexUtil {
 						changedDexIdClassNameMap.put(dexId, changedClassNameMap);
 					}
 					changedClassNameMap.put(className, className);
+					
+					Map<String, byte[]> classNameByteArrayMap=null;
+					if(dexIdClassNameByteArrayMap.containsKey(dexId)){
+						classNameByteArrayMap=dexIdClassNameByteArrayMap.get(dexId);
+					}else{
+						classNameByteArrayMap=new HashMap<String, byte[]>();
+						dexIdClassNameByteArrayMap.put(dexId, classNameByteArrayMap);
+					}
+					classNameByteArrayMap.put(className, incrementalEntry.getValue());
 				}
 			}
 			if(cache.modifiedClassNameByteArrayMap!=null&&!cache.modifiedClassNameByteArrayMap.isEmpty()){
@@ -339,7 +349,7 @@ public final class AutoDexUtil {
 						int dexId=dexIdClassNameEntry.getKey();
 						Map<String, String> classNameMap=dexIdClassNameEntry.getValue();
 						if(classNameMap.containsKey(className)){
-							FileUtil.writeFile(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.SLASH_LEFT+modifiedEntry.getKey(), modifiedEntry.getValue());
+//							FileUtil.writeFile(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.SLASH_LEFT+modifiedEntry.getKey(), modifiedEntry.getValue());
 							incrementalDexIdSet.add(dexId);
 
 							Map<String, String> changedClassNameMap=null;
@@ -350,15 +360,53 @@ public final class AutoDexUtil {
 								changedDexIdClassNameMap.put(dexId, changedClassNameMap);
 							}
 							changedClassNameMap.put(className, className);
-							break;
+
+							Map<String, byte[]> classNameByteArrayMap=null;
+							if(dexIdClassNameByteArrayMap.containsKey(dexId)){
+								classNameByteArrayMap=dexIdClassNameByteArrayMap.get(dexId);
+							}else{
+								classNameByteArrayMap=new HashMap<String, byte[]>();
+								dexIdClassNameByteArrayMap.put(dexId, classNameByteArrayMap);
+							}
+							classNameByteArrayMap.put(className, modifiedEntry.getValue());
+						}
+					}
+				}
+			}
+			//write changed class to jar
+			Iterator<Entry<Integer, Map<String, byte[]>>> dexIdIterator=dexIdClassNameByteArrayMap.entrySet().iterator();
+			while(dexIdIterator.hasNext()){
+				Entry<Integer, Map<String, byte[]>> dexIdEntry=dexIdIterator.next();
+				int dexId=dexIdEntry.getKey();
+				Map<String, byte[]> classNameByteArrayMap=dexIdEntry.getValue();
+				String incrementalJarFullFilename=incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.DOT+Constant.File.JAR;
+				FileUtil.createFile(incrementalJarFullFilename);
+				ZipOutputStream zipOutputStream=null;
+				try{
+					zipOutputStream=new ZipOutputStream(new FileOutputStream(incrementalJarFullFilename));
+					Iterator<Entry<String, byte[]>> classNameByteArrayIterator=classNameByteArrayMap.entrySet().iterator();
+					while(classNameByteArrayIterator.hasNext()){
+						Entry<String, byte[]> classNameByteArrayEntry=classNameByteArrayIterator.next();
+						String className=classNameByteArrayEntry.getKey();
+						FileUtil.addZipEntry(zipOutputStream, new ZipEntry(className), new ByteArrayInputStream(classNameByteArrayEntry.getValue()));
+					}
+				}catch(Exception e){
+					logger.error("Zip output exception dexId:"+dexId, e);
+				}finally{
+					if(zipOutputStream!=null){
+						try {
+							zipOutputStream.close();
+						} catch (IOException e) {
+							logger.error("Zip close exception dexId:"+dexId, e);
 						}
 					}
 				}
 			}
 			//dx
 			for(int dexId:incrementalDexIdSet){
+				String incrementalJarFullFilename=incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.DOT+Constant.File.JAR;
 				String incrementalDexFullFilename=incrementalDirectory+Constant.Symbol.SLASH_LEFT+CLASSES+(dexId==0?StringUtil.BLANK:(dexId+1))+Constant.Symbol.DOT+DEX;
-				DexUtil.androidDx(incrementalDexFullFilename, Arrays.asList(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId), option.debug);
+				DexUtil.androidDx(incrementalDexFullFilename, Arrays.asList(incrementalJarFullFilename), option.debug);
 				String dexFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+CLASSES+(dexId==0?StringUtil.BLANK:(dexId+1))+Constant.Symbol.DOT+DEX;
 				DexUtil.androidMergeDex(dexFullFilename, Arrays.asList(incrementalDexFullFilename, dexFullFilename));
 			}
