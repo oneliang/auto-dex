@@ -289,7 +289,7 @@ public final class AutoDexUtil {
 		}
 		//read all combined class
 		String cacheFullFilename=outputDirectory+Constant.Symbol.SLASH_LEFT+"cache.txt";
-		Cache cache=readAllCombinedClass(option.combinedClassList, cacheFullFilename);
+		Cache cache=readAllCombinedClassWithCacheFile(option.combinedClassList, cacheFullFilename);
 		//find main root class
 		if(option.mainDexOtherClassList!=null){
 			classNameList.addAll(option.mainDexOtherClassList);
@@ -412,6 +412,9 @@ public final class AutoDexUtil {
 			}
 			//update cache
 			cache.dexIdClassNameMap.putAll(changedDexIdClassNameMap);
+			if(cache.changedClassNameByteArrayMd5Map!=null){
+				cache.classNameByteArrayMd5Map.putAll(cache.changedClassNameByteArrayMd5Map);
+			}
 			if(cache.incrementalClassNameByteArrayMap!=null){
 				cache.classNameByteArrayMap.putAll(cache.incrementalClassNameByteArrayMap);
 			}
@@ -834,12 +837,21 @@ public final class AutoDexUtil {
 	}
 
 	/**
-	 * read all combined class
+	 * read all combined class with cache
 	 * @param combinedClassList
+	 * @param oldCache
 	 * @return AutoDexCache
 	 */
-	private static Cache readAllCombinedClass(List<String> combinedClassList){
+	private static Cache readAllCombinedClassWithCache(List<String> combinedClassList, Cache oldCache){
+		final int CACHE_TYPE_DEFAULT=0;
+		final int CACHE_TYPE_NO_CACHE=1;
+		final int CACHE_TYPE_INCREMENTAL=2;
+		final int CACHE_TYPE_MODIFY=3;
+		
 		Map<String, byte[]> classNameByteArrayMap=new HashMap<String,byte[]>();
+		Map<String, String> changedClassNameByteArrayMd5Map=new HashMap<String,String>();
+		Map<String, byte[]> incrementalClassNameByteArrayMap=new HashMap<String,byte[]>();
+		Map<String, byte[]> modifiedClassNameByteArrayMap=new HashMap<String,byte[]>();
 		if(combinedClassList!=null){
 			for(String combinedClassFullFilename:combinedClassList){
 				File combinedClassFile=new File(combinedClassFullFilename);
@@ -856,11 +868,42 @@ public final class AutoDexUtil {
 							if(zipEntryName.endsWith(Constant.Symbol.DOT+Constant.File.CLASS)){
 								InputStream inputStream=null;
 								try{
-									inputStream=zipFile.getInputStream(zipEntry);
-									ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
-									FileUtil.copyStream(inputStream, byteArrayOutputStream);
-									logger.verbose(zipEntryName+","+byteArrayOutputStream.toByteArray().length);
-									classNameByteArrayMap.put(zipEntryName, byteArrayOutputStream.toByteArray());
+									int cacheType=CACHE_TYPE_DEFAULT;
+									if(oldCache!=null){
+										if(oldCache.classNameByteArrayMd5Map.containsKey(zipEntryName)){
+											inputStream=zipFile.getInputStream(zipEntry);
+											String md5=Generator.MD5(inputStream);
+											if(oldCache.classNameByteArrayMd5Map.get(zipEntryName).equals(md5)){
+												continue;
+											}else{
+												logger.debug("It is a modify class:"+zipEntryName);
+												cacheType=CACHE_TYPE_MODIFY;
+											}
+										}else{
+											logger.debug("It is a new class:"+zipEntryName);
+											cacheType=CACHE_TYPE_INCREMENTAL;
+										}
+									}else{
+										cacheType=CACHE_TYPE_NO_CACHE;
+									}
+
+									if(cacheType!=CACHE_TYPE_DEFAULT){
+										inputStream=zipFile.getInputStream(zipEntry);
+										ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
+										FileUtil.copyStream(inputStream, byteArrayOutputStream);
+										byte[] byteArray=byteArrayOutputStream.toByteArray();
+										logger.verbose(zipEntryName+","+byteArray.length);
+										classNameByteArrayMap.put(zipEntryName, byteArray);
+										changedClassNameByteArrayMd5Map.put(zipEntryName, StringUtil.byteArrayToHexString(Generator.MD5ByteArray(byteArray)));
+										switch (cacheType) {
+										case CACHE_TYPE_INCREMENTAL:
+											incrementalClassNameByteArrayMap.put(zipEntryName, byteArray);
+											break;
+										case CACHE_TYPE_MODIFY:
+											modifiedClassNameByteArrayMap.put(zipEntryName, byteArray);
+											break;
+										}
+									}
 								}catch(Exception e){
 									logger.error("Exception:"+zipEntryName, e);
 								}finally{
@@ -889,20 +932,55 @@ public final class AutoDexUtil {
 					logger.debug("Reading directory combined class:"+combinedClassFullFilename);
 					String combiledClassRootPath=combinedClassFile.getAbsolutePath();
 					List<String> allClassFullFilenameList=FileUtil.findMatchFile(combiledClassRootPath, Constant.Symbol.DOT+Constant.File.CLASS);
+					logger.debug("Find class size:"+allClassFullFilenameList.size());
 					if(allClassFullFilenameList!=null){
 						combiledClassRootPath=new File(combiledClassRootPath).getAbsolutePath();
 						for(String classFullFilename:allClassFullFilenameList){
 							classFullFilename=new File(classFullFilename).getAbsolutePath();
 							String relativeClassFilename=classFullFilename.substring(combiledClassRootPath.length()+1);
 							relativeClassFilename=relativeClassFilename.replace(Constant.Symbol.SLASH_RIGHT, Constant.Symbol.SLASH_LEFT);
-							byte[] byteArray=FileUtil.readFile(classFullFilename);
-							classNameByteArrayMap.put(relativeClassFilename, byteArray);
+							int cacheType=CACHE_TYPE_DEFAULT;
+							if(oldCache!=null){
+								if(oldCache.classNameByteArrayMd5Map.containsKey(relativeClassFilename)){
+									String md5=Generator.MD5File(classFullFilename);
+									if(oldCache.classNameByteArrayMd5Map.get(relativeClassFilename).equals(md5)){
+										continue;
+									}else{
+										logger.debug("It is a modify class:"+relativeClassFilename);
+										cacheType=CACHE_TYPE_MODIFY;
+									}
+								}else{
+									logger.debug("It is a new class:"+relativeClassFilename);
+									cacheType=CACHE_TYPE_INCREMENTAL;
+								}
+							}else{
+								cacheType=CACHE_TYPE_NO_CACHE;
+							}
+
+							if(cacheType!=CACHE_TYPE_DEFAULT){
+								byte[] byteArray=FileUtil.readFile(classFullFilename);
+								classNameByteArrayMap.put(relativeClassFilename, byteArray);
+								changedClassNameByteArrayMd5Map.put(relativeClassFilename, StringUtil.byteArrayToHexString(Generator.MD5ByteArray(byteArray)));
+
+								switch (cacheType) {
+								case CACHE_TYPE_INCREMENTAL:
+									incrementalClassNameByteArrayMap.put(relativeClassFilename, byteArray);
+									break;
+								case CACHE_TYPE_MODIFY:
+									modifiedClassNameByteArrayMap.put(relativeClassFilename, byteArray);
+									break;
+								}
+							}
 						}
 					}
 				}
 			}
 		}
-		return new Cache(classNameByteArrayMap);
+		Cache cache=new Cache(classNameByteArrayMap, changedClassNameByteArrayMd5Map);
+		cache.changedClassNameByteArrayMd5Map=changedClassNameByteArrayMd5Map;
+		cache.incrementalClassNameByteArrayMap=incrementalClassNameByteArrayMap;
+		cache.modifiedClassNameByteArrayMap=modifiedClassNameByteArrayMap;
+		return cache;
 	}
 
 	/**
@@ -910,7 +988,7 @@ public final class AutoDexUtil {
 	 * @param combinedClassList
 	 * @param cacheFullFilename
 	 */
-	private static Cache readAllCombinedClass(List<String> combinedClassList, String cacheFullFilename){
+	private static Cache readAllCombinedClassWithCacheFile(List<String> combinedClassList, String cacheFullFilename){
 		long begin=System.currentTimeMillis();
 		Cache cache=null;
 		if(FileUtil.isExist(cacheFullFilename)){
@@ -921,36 +999,40 @@ public final class AutoDexUtil {
 			}
 		}
 		if(cache==null){
-			cache=readAllCombinedClass(combinedClassList);
+			cache=readAllCombinedClassWithCache(combinedClassList, cache);
 		}else{//has cache
 			//need to update cache
-			Map<String, byte[]> incrementalClassNameByteArrayMap=new HashMap<String,byte[]>();
-			Map<String, byte[]> modifiedClassNameByteArrayMap=new HashMap<String,byte[]>();
-			Cache newAutoDexCache=readAllCombinedClass(combinedClassList);
-			Iterator<Entry<String,byte[]>> newIterator=newAutoDexCache.classNameByteArrayMap.entrySet().iterator();
-			while(newIterator.hasNext()){
-				Entry<String, byte[]> newEntry=newIterator.next();
-				String newClassName=newEntry.getKey();
-				byte[] newByteArray=newEntry.getValue();
-				String newClassFileMd5=Generator.MD5(new ByteArrayInputStream(newByteArray));
-				if(cache.classNameByteArrayMap.containsKey(newClassName)){
-					byte[] byteArray=cache.classNameByteArrayMap.get(newClassName);
-					String oldClassFileMd5=Generator.MD5(new ByteArrayInputStream(byteArray));
-					if(!newClassFileMd5.equals(oldClassFileMd5)){
-						logger.debug("It is a modify class:"+newClassName);
-						modifiedClassNameByteArrayMap.put(newClassName, newByteArray);
-					}else{
-						logger.verbose("It is a same class:"+newClassName);
-					}
-				}else{
-					logger.debug("It is a new class:"+newClassName);
-					incrementalClassNameByteArrayMap.put(newClassName, newByteArray);
-				}
+//			Map<String, byte[]> incrementalClassNameByteArrayMap=new HashMap<String,byte[]>();
+//			Map<String, byte[]> modifiedClassNameByteArrayMap=new HashMap<String,byte[]>();
+			Cache newCache=readAllCombinedClassWithCache(combinedClassList, cache);
+			if(newCache!=null){
+				cache.changedClassNameByteArrayMd5Map=newCache.classNameByteArrayMd5Map;
+				cache.incrementalClassNameByteArrayMap=newCache.incrementalClassNameByteArrayMap;
+				cache.modifiedClassNameByteArrayMap=newCache.modifiedClassNameByteArrayMap;
+				logger.info("Changed class size:"+cache.classNameByteArrayMd5Map.size());
+				logger.info("Incremental class size:"+cache.incrementalClassNameByteArrayMap.size());
+				logger.info("Modified class size:"+cache.modifiedClassNameByteArrayMap.size());
 			}
-			cache.incrementalClassNameByteArrayMap=incrementalClassNameByteArrayMap;
-			cache.modifiedClassNameByteArrayMap=modifiedClassNameByteArrayMap;
-			logger.info("Incremental class size:"+cache.incrementalClassNameByteArrayMap.size());
-			logger.info("Modified class size:"+cache.modifiedClassNameByteArrayMap.size());
+//			Iterator<Entry<String,byte[]>> newIterator=newAutoDexCache.classNameByteArrayMap.entrySet().iterator();
+//			while(newIterator.hasNext()){
+//				Entry<String, byte[]> newEntry=newIterator.next();
+//				String newClassName=newEntry.getKey();
+//				byte[] newByteArray=newEntry.getValue();
+//				String newClassFileMd5=Generator.MD5(new ByteArrayInputStream(newByteArray));
+//				if(cache.classNameByteArrayMap.containsKey(newClassName)){
+//					byte[] byteArray=cache.classNameByteArrayMap.get(newClassName);
+//					String oldClassFileMd5=Generator.MD5(new ByteArrayInputStream(byteArray));
+//					if(!newClassFileMd5.equals(oldClassFileMd5)){
+//						logger.debug("It is a modify class:"+newClassName);
+//						modifiedClassNameByteArrayMap.put(newClassName, newByteArray);
+//					}else{
+//						logger.verbose("It is a same class:"+newClassName);
+//					}
+//				}else{
+//					logger.debug("It is a new class:"+newClassName);
+//					incrementalClassNameByteArrayMap.put(newClassName, newByteArray);
+//				}
+//			}
 		}
 		logger.info("Read all class file cost:"+(System.currentTimeMillis()-begin));
 		logger.info("Cache dex size:"+cache.dexIdClassNameMap.size());
@@ -1026,12 +1108,15 @@ public final class AutoDexUtil {
 
 	private static final class Cache implements Serializable{
 		private static final long serialVersionUID = 5668038330717176798L;
-		private final Map<String,byte[]> classNameByteArrayMap;
+		private final Map<String, byte[]> classNameByteArrayMap;
+		private final Map<String, String> classNameByteArrayMd5Map;
 		private final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 		private volatile Map<String,byte[]> incrementalClassNameByteArrayMap=null;
 		private volatile Map<String,byte[]> modifiedClassNameByteArrayMap=null;
-		private Cache(Map<String,byte[]> classNameByteArrayMap) {
+		private volatile Map<String,String> changedClassNameByteArrayMd5Map=null;
+		private Cache(Map<String,byte[]> classNameByteArrayMap, Map<String,String> classNameByteArrayMd5Map) {
 			this.classNameByteArrayMap=classNameByteArrayMap;
+			this.classNameByteArrayMd5Map=classNameByteArrayMd5Map;
 		}
 	}
 
