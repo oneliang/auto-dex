@@ -931,7 +931,9 @@ public final class AutoDexUtil {
 				}else if(combinedClassFile.isDirectory()){
 					logger.debug("Reading directory combined class:"+combinedClassFullFilename);
 					String combiledClassRootPath=combinedClassFile.getAbsolutePath();
-					List<String> allClassFullFilenameList=FileUtil.findMatchFile(combiledClassRootPath, Constant.Symbol.DOT+Constant.File.CLASS);
+					FileUtil.MatchOption matchOption=new FileUtil.MatchOption(combiledClassRootPath);
+					matchOption.fileSuffix=Constant.Symbol.DOT+Constant.File.CLASS;
+					List<String> allClassFullFilenameList=FileUtil.findMatchFile(matchOption);
 					logger.debug("Find class size:"+allClassFullFilenameList.size());
 					if(allClassFullFilenameList!=null){
 						combiledClassRootPath=new File(combiledClassRootPath).getAbsolutePath();
