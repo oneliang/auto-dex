@@ -308,7 +308,6 @@ public final class AutoDexUtil {
 			String incrementalDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"incremental";
 			FileUtil.deleteAllFile(incrementalDirectory);
 			FileUtil.createDirectory(incrementalDirectory);
-			Set<Integer> incrementalDexIdSet=new HashSet<Integer>();
 			Map<Integer, Map<String, String>> changedDexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 			Map<Integer,Map<String,byte[]>> dexIdClassNameByteArrayMap=new HashMap<Integer,Map<String,byte[]>>();
 			if(cache.incrementalClassNameByteArrayMap!=null&&!cache.incrementalClassNameByteArrayMap.isEmpty()){
@@ -317,7 +316,6 @@ public final class AutoDexUtil {
 				while(incrementalClassNameIterator.hasNext()){
 					Entry<String,byte[]> incrementalEntry=incrementalClassNameIterator.next();
 					String className=incrementalEntry.getKey();
-					incrementalDexIdSet.add(dexId);
 					
 					Map<String, String> changedClassNameMap=null;
 					if(changedDexIdClassNameMap.containsKey(dexId)){
@@ -350,7 +348,6 @@ public final class AutoDexUtil {
 						Map<String, String> classNameMap=dexIdClassNameEntry.getValue();
 						if(classNameMap.containsKey(className)){
 //							FileUtil.writeFile(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.SLASH_LEFT+modifiedEntry.getKey(), modifiedEntry.getValue());
-							incrementalDexIdSet.add(dexId);
 
 							Map<String, String> changedClassNameMap=null;
 							if(changedDexIdClassNameMap.containsKey(dexId)){
@@ -403,7 +400,7 @@ public final class AutoDexUtil {
 				}
 			}
 			//dx
-			for(int dexId:incrementalDexIdSet){
+			for(int dexId:changedDexIdClassNameMap.keySet()){
 				String incrementalJarFullFilename=incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.DOT+Constant.File.JAR;
 				String incrementalDexFullFilename=incrementalDirectory+Constant.Symbol.SLASH_LEFT+CLASSES+(dexId==0?StringUtil.BLANK:(dexId+1))+Constant.Symbol.DOT+DEX;
 				DexUtil.androidDx(incrementalDexFullFilename, Arrays.asList(incrementalJarFullFilename), option.debug);
@@ -411,7 +408,15 @@ public final class AutoDexUtil {
 				DexUtil.androidMergeDex(dexFullFilename, Arrays.asList(incrementalDexFullFilename, dexFullFilename));
 			}
 			//update cache
-			cache.dexIdClassNameMap.putAll(changedDexIdClassNameMap);
+			for(int dexId:changedDexIdClassNameMap.keySet()){
+				if(cache.dexIdClassNameMap.containsKey(dexId)){
+					Map<String,String> cacheDexIdClassNameMap=cache.dexIdClassNameMap.get(dexId);
+					cacheDexIdClassNameMap.putAll(changedDexIdClassNameMap.get(dexId));
+				}else{
+					logger.error("DexId:"+dexId+" is not exist? impossible...", null);
+				}
+			}
+			
 			if(cache.changedClassNameByteArrayMd5Map!=null){
 				cache.classNameByteArrayMd5Map.putAll(cache.changedClassNameByteArrayMd5Map);
 			}
