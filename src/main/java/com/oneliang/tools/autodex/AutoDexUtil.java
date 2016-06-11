@@ -1118,9 +1118,9 @@ public final class AutoDexUtil {
 		private final Map<String, byte[]> classNameByteArrayMap;
 		private final Map<String, String> classNameByteArrayMd5Map;
 		private final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
-		private volatile Map<String,byte[]> incrementalClassNameByteArrayMap=null;
-		private volatile Map<String,byte[]> modifiedClassNameByteArrayMap=null;
-		private volatile Map<String,String> changedClassNameByteArrayMd5Map=null;
+		private transient Map<String,byte[]> incrementalClassNameByteArrayMap=null;
+		private transient Map<String,byte[]> modifiedClassNameByteArrayMap=null;
+		private transient Map<String,String> changedClassNameByteArrayMd5Map=null;
 		private Cache(Map<String,byte[]> classNameByteArrayMap, Map<String,String> classNameByteArrayMd5Map) {
 			this.classNameByteArrayMap=classNameByteArrayMap;
 			this.classNameByteArrayMd5Map=classNameByteArrayMd5Map;
