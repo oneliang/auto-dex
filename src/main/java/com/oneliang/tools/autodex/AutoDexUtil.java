@@ -437,6 +437,7 @@ public final class AutoDexUtil {
 				innerBegin=System.currentTimeMillis();
 				final CountDownLatch countDownLatch=new CountDownLatch(subDexListMap.size());
 				Set<Integer> dexIdSet=subDexListMap.keySet();
+				final Map<Integer, Exception> mergeDexExceptionMap = new HashMap<Integer, Exception>();
 				for(final int dexId:dexIdSet){
 					String dexOutputDirectory=outputDirectory;
 					String dexFullFilename=null;
@@ -451,6 +452,7 @@ public final class AutoDexUtil {
 							try{
 								DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
 							}catch(Exception e){
+								mergeDexExceptionMap.put(dexId, e);
 								logger.error(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage(), e);
 							}
 							countDownLatch.countDown();
@@ -461,6 +463,15 @@ public final class AutoDexUtil {
 				countDownLatch.await();
 				logger.info("Merge dex cost:"+(System.currentTimeMillis()-innerBegin));
 				FileUtil.deleteAllFile(splitAndDxTempDirectory);
+				if(!mergeDexExceptionMap.isEmpty()){
+					Iterator<Entry<Integer, Exception>> iterator=mergeDexExceptionMap.entrySet().iterator();
+					while(iterator.hasNext()){
+						Entry<Integer, Exception> entry=iterator.next();
+						int dexId=entry.getKey();
+						Exception e=entry.getValue();
+						throw new AutoDexUtilException(Constant.Base.EXCEPTION+",dexId:"+dexId+","+e.getMessage(), e);
+					}
+				}
 			}catch(Exception e){
 				throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
 			}
@@ -897,7 +908,7 @@ public final class AutoDexUtil {
 										ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
 										FileUtil.copyStream(inputStream, byteArrayOutputStream);
 										byte[] byteArray=byteArrayOutputStream.toByteArray();
-										logger.verbose(zipEntryName+","+byteArray.length);
+//										logger.verbose(zipEntryName+","+byteArray.length);
 										classNameByteArrayMap.put(zipEntryName, byteArray);
 										classNameByteArrayMd5Map.put(zipEntryName, StringUtil.byteArrayToHexString(Generator.MD5ByteArray(byteArray)));
 										switch (cacheType) {
@@ -995,7 +1006,7 @@ public final class AutoDexUtil {
 	 * @param combinedClassList
 	 * @param cacheFullFilename
 	 */
-	private static Cache readAllCombinedClassWithCacheFile(List<String> combinedClassList, String cacheFullFilename){
+	public static Cache readAllCombinedClassWithCacheFile(List<String> combinedClassList, String cacheFullFilename){
 		long begin=System.currentTimeMillis();
 		Cache cache=null;
 		if(FileUtil.isExist(cacheFullFilename)){
@@ -1113,9 +1124,9 @@ public final class AutoDexUtil {
 		}
 	}
 
-	private static final class Cache implements Serializable{
+	public static final class Cache implements Serializable{
 		private static final long serialVersionUID = 5668038330717176798L;
-		private final Map<String, byte[]> classNameByteArrayMap;
+		public final Map<String, byte[]> classNameByteArrayMap;
 		private final Map<String, String> classNameByteArrayMd5Map;
 		private final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 		private transient Map<String,byte[]> incrementalClassNameByteArrayMap=null;
