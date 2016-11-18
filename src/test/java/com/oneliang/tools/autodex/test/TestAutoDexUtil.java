@@ -3,14 +3,17 @@ package com.oneliang.tools.autodex.test;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import com.oneliang.Constant;
@@ -25,6 +28,8 @@ import com.oneliang.util.logging.ComplexLogger;
 import com.oneliang.util.logging.FileLogger;
 import com.oneliang.util.logging.Logger;
 import com.oneliang.util.logging.LoggerManager;
+import com.oneliang.util.proguard.Retrace;
+import com.oneliang.util.proguard.Retrace.Processor;
 
 public class TestAutoDexUtil {
 
@@ -34,6 +39,7 @@ public class TestAutoDexUtil {
 	// mainDexOtherClasses=".app.FirstCrashCatcher,.app.MMApplicationWrapper,.ui.NoRomSpaceDexUI,.svg.SVGPreload,.svg.SVGBuildConfig,.plugin.exdevice,.jni.C2JavaExDevice,.svg.graphics.SVGCodeDrawable,com.tenpay.cert.CertUtil,.svg.WeChatSVGRenderC2Java,com.tencent.kingkong.database.SQLiteDoneException,.crash.CrashUploaderService,.app.WorkerProfile,.app.PusherProfile,.app.ToolsProfile,.app.SandBoxProfile,.app.ExDeviceProfile,.app.PatchProfile,.app.TMAssistantProfile,.app.NoSpaceProfile,.plugin.sandbox.SubCoreSandBox,.sdk.platformtools.CrashMonitorForJni,.jni.utils.UtilsJni,.plugin.accountsync.Plugin,.plugin.sandbox.Plugin,.ui.base.preference.PreferenceScreen,.lan_cs.Client,.lan_cs.Server,.svg.SVGResourceRegister,.jni.platformcomm.PlatformCommBridge,.app.MMApplicationLike,.app.Application,com.tencent.tinker.loader.**";
 	private static final String outputDirectory = "/D:/autodex/output";
 	private static final String mainDexList = "/D:/autodex/main-dex-list.txt";
+	private static final String mappingFile = "/D:/autodex/mapping.txt";
 	private static final boolean debug = false;
 
 	private static List<String> readMainDexClassList(String mainDexList) {
@@ -73,14 +79,56 @@ public class TestAutoDexUtil {
 		Logger logger = new ComplexLogger(Logger.Level.VERBOSE, loggerList);
 		LoggerManager.registerLogger(AutoDexUtil.class, logger);
 		LoggerManager.registerLogger(AsmUtil.class, logger);
-		// System.setOut(new PrintStream(new
-		// FileOutputStream("/D:/mainDex.txt")));
+		System.setOut(new PrintStream(new FileOutputStream("/D:/autodex/log.txt")));
 		// FileUtil.deleteAllFile(outputDirectory);
 		AutoDexUtil.Option option = new AutoDexUtil.Option(combinedClassList, androidManifestFullFilename, outputDirectory, debug);
 		option.minMainDex = false;
 		option.mainDexOtherClassList = readMainDexClassList(mainDexList);// Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA));
-		AutoDexUtil.autoDex(option);
+		AutoDexUtil.Result result = new AutoDexUtil.Result();
+		try {
+			AutoDexUtil.autoDex(option, result);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		if (result.dexIdClassNameMap != null && result.classDescriptionMap != null && result.referencedClassDescriptionListMap != null) {
+			ClassProcessor classProcessor = new ClassProcessor();
+			Retrace.readMapping(mappingFile, classProcessor);
+			String referencedClassName = "com/tencent/mm/ui/conversation/AppBrandServiceConversationUI.class";
+			List<ClassDescription> classDescriptionList = result.referencedClassDescriptionListMap.get(referencedClassName);
+			if (classDescriptionList != null) {
+				for (ClassDescription classDescription : classDescriptionList) {
+					String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
+					System.out.println("call:" + classProcessor.classNameMap.get(callClassName));
+				}
+			}
+			System.out.println("--------------------");
+			Iterator<Entry<String, String>> dexId0ClassNameIterator = result.dexIdClassNameMap.get(0).entrySet().iterator();
+			while (dexId0ClassNameIterator.hasNext()) {
+				Entry<String, String> classNameEntry = dexId0ClassNameIterator.next();
+				String className = classNameEntry.getKey();
+				ClassDescription classDescription = result.classDescriptionMap.get(className);
+				System.out.println("c:" + classProcessor.classNameMap.get(className));
+				for (String dependClassName : classDescription.dependClassNameList) {
+					dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+					System.out.println("\tdepend:" + classProcessor.classNameMap.get(dependClassName));
+				}
+			}
+		}
 	}
+
+	private static class ClassProcessor implements Processor {
+		private Map<String, String> classNameMap = new HashMap<String, String>();
+
+		public void processMethodMapping(String className, int firstLineNumber, int lastLineNumber, String methodReturnType, String methodName, String methodArguments, String newMethodName) {
+		}
+
+		public void processFieldMapping(String className, String fieldType, String fieldName, String newFieldName) {
+		}
+
+		public void processClassMapping(String className, String newClassName) {
+			classNameMap.put(newClassName.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT) + Constant.Symbol.DOT + Constant.File.CLASS, className.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT) + Constant.Symbol.DOT + Constant.File.CLASS);
+		}
+	};
 
 	static List<String> array = new ArrayList<String>();
 

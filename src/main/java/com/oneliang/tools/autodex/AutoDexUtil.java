@@ -274,8 +274,9 @@ public final class AutoDexUtil {
 	/**
 	 * auto dex
 	 * @param option
+	 * @param result
 	 */
-	public static void autoDex(Option option) {
+	public static void autoDex(Option option, Result result) {
 		String outputDirectory=new File(option.outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long outerBegin=System.currentTimeMillis();
@@ -305,6 +306,7 @@ public final class AutoDexUtil {
 		//find all dex class
 		if(cache.dexIdClassNameMap!=null&&!cache.dexIdClassNameMap.isEmpty()){
 			dexIdClassNameMap=cache.dexIdClassNameMap;
+			result.dexIdClassNameMap = dexIdClassNameMap;
 			String incrementalDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"incremental";
 			FileUtil.deleteAllFile(incrementalDirectory);
 			FileUtil.createDirectory(incrementalDirectory);
@@ -427,8 +429,9 @@ public final class AutoDexUtil {
 				cache.classNameByteArrayMap.putAll(cache.modifiedClassNameByteArrayMap);
 			}
 		}else{
-			dexIdClassNameMap=autoDex(option, cache.classNameByteArrayMap, mainDexRootClassNameSet, null);
+			dexIdClassNameMap=autoDex(option, result, cache.classNameByteArrayMap, mainDexRootClassNameSet, null);
 			cache.dexIdClassNameMap.putAll(dexIdClassNameMap);
+			result.dexIdClassNameMap = dexIdClassNameMap;
 			logger.info("Caculate total cost:"+(System.currentTimeMillis()-innerBegin));
 			try{
 				String splitAndDxTempDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"temp";
@@ -487,12 +490,13 @@ public final class AutoDexUtil {
 	/**
 	 * auto dex
 	 * @param option
+	 * @param result
 	 * @param classNameByteArrayMap
 	 * @param mainDexRootClassNameSet
 	 * @param fieldProcessor
 	 * @return Map<Integer, Map<String,String>>, <dexId,classNameMap>
 	 */
-	private static Map<Integer,Map<String,String>> autoDex(Option option, Map<String, byte[]> classNameByteArrayMap, Set<String> mainDexRootClassNameSet, final FieldProcessor fieldProcessor){
+	private static Map<Integer,Map<String,String>> autoDex(Option option, Result result, Map<String, byte[]> classNameByteArrayMap, Set<String> mainDexRootClassNameSet, final FieldProcessor fieldProcessor){
 		final Map<Integer,Map<String,String>> dexIdClassNameMap=new HashMap<Integer, Map<String,String>>();
 		try{
 			long begin=System.currentTimeMillis();
@@ -502,6 +506,8 @@ public final class AutoDexUtil {
 			if(classNameByteArrayMap!=null){
 				classDescriptionMap.putAll(AsmUtil.findClassDescriptionMap(classNameByteArrayMap, referencedClassDescriptionListMap));
 			}
+			result.classDescriptionMap = classDescriptionMap;
+			result.referencedClassDescriptionListMap = referencedClassDescriptionListMap;
 			logger.info("classDescriptionMap:"+classDescriptionMap.size()+",referencedClassDescriptionListMap:"+referencedClassDescriptionListMap.size());
 			//all class map
 			Map<String,String> allClassNameMap=new HashMap<String,String>();
@@ -864,8 +870,8 @@ public final class AutoDexUtil {
 		final int CACHE_TYPE_INCREMENTAL=2;
 		final int CACHE_TYPE_MODIFY=3;
 		
-		Map<String, byte[]> classNameByteArrayMap=new HashMap<String,byte[]>();
-		Map<String, String> classNameByteArrayMd5Map=new HashMap<String,String>();
+		Map<String, byte[]> classNameByteArrayMap=new HashMap<String,byte[]>();//incremental when old cache exist, full when old cache not exist
+		Map<String, String> classNameByteArrayMd5Map=new HashMap<String,String>();//incremental when old cache exist, full when old cache not exist
 		Map<String, byte[]> incrementalClassNameByteArrayMap=new HashMap<String,byte[]>();
 		Map<String, byte[]> modifiedClassNameByteArrayMap=new HashMap<String,byte[]>();
 		if(combinedClassList!=null){
@@ -1020,8 +1026,6 @@ public final class AutoDexUtil {
 			cache=readAllCombinedClassWithCache(combinedClassList, cache);
 		}else{//has cache
 			//need to update cache
-//			Map<String, byte[]> incrementalClassNameByteArrayMap=new HashMap<String,byte[]>();
-//			Map<String, byte[]> modifiedClassNameByteArrayMap=new HashMap<String,byte[]>();
 			Cache newCache=readAllCombinedClassWithCache(combinedClassList, cache);
 			if(newCache!=null){
 				cache.changedClassNameByteArrayMd5Map=newCache.changedClassNameByteArrayMd5Map;
@@ -1031,26 +1035,6 @@ public final class AutoDexUtil {
 				logger.info("Incremental class size:"+cache.incrementalClassNameByteArrayMap.size());
 				logger.info("Modified class size:"+cache.modifiedClassNameByteArrayMap.size());
 			}
-//			Iterator<Entry<String,byte[]>> newIterator=newAutoDexCache.classNameByteArrayMap.entrySet().iterator();
-//			while(newIterator.hasNext()){
-//				Entry<String, byte[]> newEntry=newIterator.next();
-//				String newClassName=newEntry.getKey();
-//				byte[] newByteArray=newEntry.getValue();
-//				String newClassFileMd5=Generator.MD5(new ByteArrayInputStream(newByteArray));
-//				if(cache.classNameByteArrayMap.containsKey(newClassName)){
-//					byte[] byteArray=cache.classNameByteArrayMap.get(newClassName);
-//					String oldClassFileMd5=Generator.MD5(new ByteArrayInputStream(byteArray));
-//					if(!newClassFileMd5.equals(oldClassFileMd5)){
-//						logger.debug("It is a modify class:"+newClassName);
-//						modifiedClassNameByteArrayMap.put(newClassName, newByteArray);
-//					}else{
-//						logger.verbose("It is a same class:"+newClassName);
-//					}
-//				}else{
-//					logger.debug("It is a new class:"+newClassName);
-//					incrementalClassNameByteArrayMap.put(newClassName, newByteArray);
-//				}
-//			}
 		}
 		logger.info("Read all class file cost:"+(System.currentTimeMillis()-begin));
 		logger.info("Cache dex size:"+cache.dexIdClassNameMap.size());
@@ -1112,6 +1096,7 @@ public final class AutoDexUtil {
 		public int fieldLimit=DEFAULT_FIELD_LIMIT;
 		public int methodLimit=DEFAULT_METHOD_LIMIT;
 		public int linearAllocLimit=DEFAULT_LINEAR_ALLOC_LIMIT;
+		public Result result=new Result();
 		public Option(List<String> combinedClassList, String androidManifestFullFilename, String outputDirectory, boolean debug) {
 			this.combinedClassList=combinedClassList;
 			this.androidManifestFullFilename=androidManifestFullFilename;
@@ -1122,6 +1107,12 @@ public final class AutoDexUtil {
 			this.attachBaseContext=this.debug?true:false;
 			this.minMainDex=this.debug?true:false;
 		}
+	}
+
+	public static final class Result {
+		public Map<Integer, Map<String, String>> dexIdClassNameMap = null;
+		public Map<String, ClassDescription> classDescriptionMap = null;
+		public Map<String, List<ClassDescription>> referencedClassDescriptionListMap = null;
 	}
 
 	public static final class Cache implements Serializable{
