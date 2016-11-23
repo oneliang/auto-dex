@@ -14,6 +14,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Set;
 
 import com.oneliang.Constant;
@@ -22,6 +23,7 @@ import com.oneliang.thirdparty.asm.util.ClassDescription;
 import com.oneliang.tools.autodex.AutoDexUtil;
 import com.oneliang.tools.autodex.AutoDexUtil.Cache;
 import com.oneliang.util.common.StringUtil;
+import com.oneliang.util.file.FileUtil;
 import com.oneliang.util.logging.AbstractLogger;
 import com.oneliang.util.logging.BaseLogger;
 import com.oneliang.util.logging.ComplexLogger;
@@ -90,17 +92,17 @@ public class TestAutoDexUtil {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		ClassProcessor classProcessor = new ClassProcessor();
+		Retrace.readMapping(mappingFile, classProcessor);
 		if (result.dexIdClassNameMap != null && result.classDescriptionMap != null && result.referencedClassDescriptionListMap != null) {
-			ClassProcessor classProcessor = new ClassProcessor();
-			Retrace.readMapping(mappingFile, classProcessor);
-			String referencedClassName = "com/tencent/mm/ui/conversation/AppBrandServiceConversationUI.class";
-			List<ClassDescription> classDescriptionList = result.referencedClassDescriptionListMap.get(referencedClassName);
-			if (classDescriptionList != null) {
-				for (ClassDescription classDescription : classDescriptionList) {
-					String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
-					System.out.println("call:" + classProcessor.classNameMap.get(callClassName));
-				}
-			}
+//			String referencedClassName = "com/tencent/mm/ui/conversation/AppBrandServiceConversationUI.class";
+//			List<ClassDescription> classDescriptionList = result.referencedClassDescriptionListMap.get(referencedClassName);
+//			if (classDescriptionList != null) {
+//				for (ClassDescription classDescription : classDescriptionList) {
+//					String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
+//					System.out.println("call:" + classProcessor.classNameMap.get(callClassName));
+//				}
+//			}
 			System.out.println("--------------------");
 			Iterator<Entry<String, String>> dexId0ClassNameIterator = result.dexIdClassNameMap.get(0).entrySet().iterator();
 			while (dexId0ClassNameIterator.hasNext()) {
@@ -114,6 +116,15 @@ public class TestAutoDexUtil {
 				}
 			}
 		}
+		Properties properties=FileUtil.getProperties(outputDirectory+"/0.txt");
+		Iterator<Entry<Object, Object>> iterator=properties.entrySet().iterator();
+		StringBuilder stringBuilder=new StringBuilder();
+		while(iterator.hasNext()){
+			Object className=iterator.next().getKey();
+			stringBuilder.append(classProcessor.classNameMap.get(className.toString()));
+			stringBuilder.append(StringUtil.LF_STRING);
+		}
+		FileUtil.writeFile(outputDirectory+"/0_retrace.txt", stringBuilder.toString().getBytes(Constant.Encoding.UTF8));
 	}
 
 	private static class ClassProcessor implements Processor {
