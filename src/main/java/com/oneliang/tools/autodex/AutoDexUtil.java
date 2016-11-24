@@ -273,10 +273,22 @@ public final class AutoDexUtil {
 
 	/**
 	 * auto dex
+	 * 
+	 * @param option
+	 */
+	public static void autoDex(Option option) {
+		autoDex(option, null);
+	}
+
+	/**
+	 * auto dex
 	 * @param option
 	 * @param result
 	 */
 	public static void autoDex(Option option, Result result) {
+		if (result == null) {
+			result = new Result();
+		}
 		String outputDirectory=new File(option.outputDirectory).getAbsolutePath();
 		FileUtil.createDirectory(outputDirectory);
 		long outerBegin=System.currentTimeMillis();
