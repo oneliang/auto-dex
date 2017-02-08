@@ -317,6 +317,7 @@ public final class AutoDexUtil {
 		Map<Integer,Map<String,String>> dexIdClassNameMap=null;
 		//find all dex class
 		if(cache.dexIdClassNameMap!=null&&!cache.dexIdClassNameMap.isEmpty()){
+		    logger.info("[Cache] dexId size:"+cache.dexIdClassNameMap.size());
 			dexIdClassNameMap=cache.dexIdClassNameMap;
 			result.dexIdClassNameMap = dexIdClassNameMap;
 			String incrementalDirectory=outputDirectory+Constant.Symbol.SLASH_LEFT+"incremental";
@@ -350,6 +351,7 @@ public final class AutoDexUtil {
 					classNameByteArrayMap.put(className, incrementalEntry.getValue());
 				}
 			}
+			logger.info("[Cache] new class dexId size:"+dexIdClassNameByteArrayMap.size());
 			if(cache.modifiedClassNameByteArrayMap!=null&&!cache.modifiedClassNameByteArrayMap.isEmpty()){
 				Iterator<Entry<String,byte[]>> modifiedClassNameIterator=cache.modifiedClassNameByteArrayMap.entrySet().iterator();
 				while(modifiedClassNameIterator.hasNext()){
@@ -384,11 +386,13 @@ public final class AutoDexUtil {
 					}
 				}
 			}
+			logger.info("[Cache] all changed class dexId size:"+dexIdClassNameByteArrayMap.size());
 			//write changed class to jar
 			Iterator<Entry<Integer, Map<String, byte[]>>> dexIdIterator=dexIdClassNameByteArrayMap.entrySet().iterator();
 			while(dexIdIterator.hasNext()){
 				Entry<Integer, Map<String, byte[]>> dexIdEntry=dexIdIterator.next();
 				int dexId=dexIdEntry.getKey();
+				logger.info("[Cache] create jar,dexId:"+dexId);
 				Map<String, byte[]> classNameByteArrayMap=dexIdEntry.getValue();
 				String incrementalJarFullFilename=incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.DOT+Constant.File.JAR;
 				FileUtil.createFile(incrementalJarFullFilename);
