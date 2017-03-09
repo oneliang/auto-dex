@@ -157,7 +157,7 @@ public final class LinearAllocUtil {
      * buffer of Android's Dalvik VM.
      * 
      * @param inputStream
-     *            Raw bytes of the Java class to analyze.
+     *            Raw bytes of the Java class to analyze.need to close manual
      * @return AllocStat
      */
     public static AllocStat estimateClass(InputStream inputStream) {
