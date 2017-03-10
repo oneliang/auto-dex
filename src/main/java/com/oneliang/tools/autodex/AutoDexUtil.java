@@ -627,6 +627,7 @@ public final class AutoDexUtil {
                         if (dexId == 0) {
                             dexTotalAllocStat.setTotalAlloc(dexTotalAllocStat.getTotalAlloc() + thisTimeAllocStat.getTotalAlloc());
                             dexTotalAllocStat.getMethodReferenceMap().putAll(thisTimeAllocStat.getMethodReferenceMap());
+                            dexTotalAllocStat.getFieldReferenceMap().putAll(thisTimeAllocStat.getFieldReferenceMap());
                             // add to current dex class name map
                             if (!dexIdClassNameMap.containsKey(dexId)) {
                                 dexIdClassNameMap.put(dexId, dependClassNameMap);
