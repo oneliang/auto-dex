@@ -872,7 +872,7 @@ public final class AutoDexUtil {
      * @param androidManifestFullFilename
      * @return String
      */
-    private static String parsePackageName(String androidManifestFullFilename) {
+    public static String parsePackageName(String androidManifestFullFilename) {
         String packageName = null;
         if (FileUtil.isExist(androidManifestFullFilename)) {
             XPathFactory factory = XPathFactory.newInstance();
@@ -1101,10 +1101,11 @@ public final class AutoDexUtil {
      * find main root class set
      * 
      * @param combinedClassNameSet
+     * @param packageName
      * @param classNameList
-     * @return List<String>
+     * @return Set<String>
      */
-    private static Set<String> findMainRootClassSet(Set<String> combinedClassNameSet, String packageName, List<String> classNameList) {
+    public static Set<String> findMainRootClassSet(Set<String> combinedClassNameSet, String packageName, List<String> classNameList) {
         List<String> regexList = new ArrayList<String>();
         Set<String> allClassSet = new HashSet<String>();
         if (classNameList != null) {
