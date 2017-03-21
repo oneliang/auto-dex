@@ -35,7 +35,7 @@ import com.oneliang.util.proguard.Retrace.Processor;
 
 public class TestAutoDexUtil {
 
-	private static final List<String> combinedClassList = Arrays.asList("/D:/autodex/main_inline.jar");
+	private static final List<String> combinedClassList = Arrays.asList("/D:/autodex/main.jar");
 	private static final String androidManifestFullFilename = "/D:/autodex/AndroidManifest.xml";
 	// private static final String
 	// mainDexOtherClasses=".app.FirstCrashCatcher,.app.MMApplicationWrapper,.ui.NoRomSpaceDexUI,.svg.SVGPreload,.svg.SVGBuildConfig,.plugin.exdevice,.jni.C2JavaExDevice,.svg.graphics.SVGCodeDrawable,com.tenpay.cert.CertUtil,.svg.WeChatSVGRenderC2Java,com.tencent.kingkong.database.SQLiteDoneException,.crash.CrashUploaderService,.app.WorkerProfile,.app.PusherProfile,.app.ToolsProfile,.app.SandBoxProfile,.app.ExDeviceProfile,.app.PatchProfile,.app.TMAssistantProfile,.app.NoSpaceProfile,.plugin.sandbox.SubCoreSandBox,.sdk.platformtools.CrashMonitorForJni,.jni.utils.UtilsJni,.plugin.accountsync.Plugin,.plugin.sandbox.Plugin,.ui.base.preference.PreferenceScreen,.lan_cs.Client,.lan_cs.Server,.svg.SVGResourceRegister,.jni.platformcomm.PlatformCommBridge,.app.MMApplicationLike,.app.Application,com.tencent.tinker.loader.**";
@@ -69,7 +69,7 @@ public class TestAutoDexUtil {
 		}
 		return mainDexClassList;
 	}
-	public static void main(String[] args) throws Exception {
+	public static void main2(String[] args) throws Exception {
 		String mappingFile="/D:/autodex/mapping_2660.txt";
 		String outputDirectory="/D:/autodex";
 		ClassProcessor classProcessor = new ClassProcessor();
@@ -84,7 +84,7 @@ public class TestAutoDexUtil {
 		}
 		FileUtil.writeFile(outputDirectory+"/0_2660_retrace.txt", stringBuilder.toString().getBytes(Constant.Encoding.UTF8));
 	}
-	public static void main2(String[] args) throws Exception {
+	public static void main(String[] args) throws Exception {
 		// String
 		// classFullFilename="E:/Dandelion/java/githubWorkspace/auto-dex/bin/com/oneliang/tools/autodex/test/InnerClass$InnerInterface.class";
 		// AsmUtil.traceClass(classFullFilename, new PrintWriter(System.out));
@@ -101,6 +101,7 @@ public class TestAutoDexUtil {
 		option.minMainDex = false;
 //		option.methodLimit = 0xE000;
 		option.mainDexOtherClassList = readMainDexClassList(mainDexList);// Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA));
+        option.oldDexIdClassNameMap = getOldDexIdClassNameMap();
 		AutoDexUtil.Result result = new AutoDexUtil.Result();
 		try {
 			AutoDexUtil.autoDex(option, result);
@@ -209,4 +210,12 @@ public class TestAutoDexUtil {
 			AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, true);
 		}
 	}
+
+    private static Map<Integer, Map<String, String>> getOldDexIdClassNameMap() {
+        Map<Integer, Map<String, String>> oldDexIdClassNameMap = new HashMap<Integer, Map<String, String>>();
+        Map<String, String> dexId0ClassNameMap=new HashMap<String, String>();
+        dexId0ClassNameMap.put("com/tencent/mm/plugin/wallet_core/model/h.class", "com/tencent/mm/plugin/wallet_core/model/h.class");
+        oldDexIdClassNameMap.put(0, dexId0ClassNameMap);
+        return oldDexIdClassNameMap;
+    }
 }

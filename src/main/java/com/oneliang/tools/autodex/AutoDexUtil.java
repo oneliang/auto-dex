@@ -456,6 +456,9 @@ public final class AutoDexUtil {
             }
         } else {
             dexIdClassNameMap = autoDex(option, result, cache.classNameByteArrayMap, mainDexRootClassNameSet, null);
+
+            dexIdClassNameMap = applyOldDexIdClassNameMap(option.oldDexIdClassNameMap, dexIdClassNameMap);
+
             cache.dexIdClassNameMap.putAll(dexIdClassNameMap);
             result.dexIdClassNameMap = dexIdClassNameMap;
             logger.info("Caculate total cost:" + (System.currentTimeMillis() - innerBegin));
@@ -1139,6 +1142,47 @@ public final class AutoDexUtil {
         return allClassSet;
     }
 
+    /**
+     * apply old dex id class name map
+     * 
+     * @param oldDexIdClassNameMap
+     * @param newDexIdClassNameMap
+     * @return Map<Integer, Map<String, String>>
+     */
+    private static Map<Integer, Map<String, String>> applyOldDexIdClassNameMap(final Map<Integer, Map<String, String>> oldDexIdClassNameMap, final Map<Integer, Map<String, String>> newDexIdClassNameMap) {
+        if (oldDexIdClassNameMap == null || oldDexIdClassNameMap.isEmpty()) {
+            return newDexIdClassNameMap;
+        }
+        Map<String, Integer> newClassNameDexIdMap = new HashMap<String, Integer>();
+        Set<Integer> newDexIdSet = newDexIdClassNameMap.keySet();
+        for (int newDexId : newDexIdSet) {
+            Map<String, String> classNameMap = newDexIdClassNameMap.get(newDexId);
+            Set<String> classNameSet = classNameMap.keySet();
+            for (String className : classNameSet) {
+                newClassNameDexIdMap.put(className, newDexId);
+            }
+        }
+        Set<Integer> oldDexIdSet = oldDexIdClassNameMap.keySet();
+        for (int oldDexId : oldDexIdSet) {
+            Map<String, String> classNameMap = oldDexIdClassNameMap.get(oldDexId);
+            Set<String> classNameSet = classNameMap.keySet();
+            for (String className : classNameSet) {
+                if (!newClassNameDexIdMap.containsKey(className)) {
+                    // delete in new dex
+                    continue;
+                }
+                int newDexId = newClassNameDexIdMap.get(className);
+                if (oldDexId == newDexId) {
+                    continue;
+                }
+                newDexIdClassNameMap.get(oldDexId).put(className, className);
+                newDexIdClassNameMap.get(newDexId).remove(className);
+            }
+        }
+
+        return newDexIdClassNameMap;
+    }
+
     public static final class Option {
         public static final int DEFAULT_FIELD_LIMIT = 0xFFD0;// dex field must
                                                              // less than
@@ -1163,6 +1207,7 @@ public final class AutoDexUtil {
         public int methodLimit = DEFAULT_METHOD_LIMIT;
         public int linearAllocLimit = DEFAULT_LINEAR_ALLOC_LIMIT;
         public Result result = new Result();
+        public Map<Integer, Map<String, String>> oldDexIdClassNameMap = null;
 
         public Option(List<String> combinedClassList, String androidManifestFullFilename, String outputDirectory, boolean debug) {
             this.combinedClassList = combinedClassList;
