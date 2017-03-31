@@ -572,7 +572,14 @@ public final class AutoDexUtil {
                             mustMainDex = false;
                             dependClassNameMap = AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, true);
                         } else {
-                            dependClassNameMap = AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !option.debug);
+                            if (option.debug) {
+                                dependClassNameMap = new HashMap<String, String>();
+                                for (String className : rootClassNameSet) {
+                                    dependClassNameMap.put(className, className);
+                                }
+                            } else {
+                                dependClassNameMap = AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !option.debug);
+                            }
                         }
                     }
                     // 先算这一垞有多少个方法数和linear
@@ -681,7 +688,18 @@ public final class AutoDexUtil {
                     for (String key : remainKeySet) {
                         dexQueue.add(autoDexId);
                         Set<String> set = new HashSet<String>();
-                        set.add(key);
+                        if (option.debug) {
+                            int count = 0;
+                            for (String remainClassName : remainKeySet) {
+                                set.add(remainClassName);
+                                count++;
+                                if (count >= 500) {
+                                    break;
+                                }
+                            }
+                        } else {
+                            set.add(key);
+                        }
                         dexClassRootSetMap.put(autoDexId, set);
                         break;
                     }

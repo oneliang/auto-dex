@@ -97,9 +97,8 @@ public class AllocClassVisitor extends ClassVisitor {
     public void visitOuterClass(String owner, String name, String desc) {
         super.visitOuterClass(owner, name, desc);
         if (name != null) {
-            // MethodReference methodReference=new MethodReference(className,
-            // name, desc);
-            // methodReferenceList.add(methodReference);
+            MethodReference methodReference = new MethodReference(owner, name, desc);
+            methodReferenceList.add(methodReference);
         }
     }
 
