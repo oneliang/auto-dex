@@ -44,6 +44,7 @@ repositories {
 }
 
 dependencies {
+    compile fileTree(include: ['*.jar'], dir: 'libs')
 	compile 'com.oneliang:common-util:1.0'
 	compile 'com.oneliang:third-party-lib:1.0'
 	compile 'com.oneliang:third-party-util:1.0'
