@@ -971,10 +971,11 @@ public final class AutoDexUtil {
                                         if (oldCache.classNameByteArrayMD5Map.containsKey(zipEntryName)) {
                                             inputStream = zipFile.getInputStream(zipEntry);
                                             String md5 = Generator.MD5(inputStream);
-                                            if (oldCache.classNameByteArrayMD5Map.get(zipEntryName).equals(md5)) {
+                                            String oldMd5 = oldCache.classNameByteArrayMD5Map.get(zipEntryName);
+                                            if (oldMd5.equals(md5)) {
                                                 continue;
                                             } else {
-                                                logger.debug("It is a modify class:" + zipEntryName);
+                                                logger.debug("It is a modify class:" + zipEntryName + ",old md5:" + oldMd5 + ",new md5:" + md5);
                                                 cacheType = CACHE_TYPE_MODIFY;
                                             }
                                         } else {
@@ -1043,10 +1044,11 @@ public final class AutoDexUtil {
                             if (oldCache != null) {
                                 if (oldCache.classNameByteArrayMD5Map.containsKey(relativeClassFilename)) {
                                     String md5 = Generator.MD5File(classFullFilename);
-                                    if (oldCache.classNameByteArrayMD5Map.get(relativeClassFilename).equals(md5)) {
+                                    String oldMd5 = oldCache.classNameByteArrayMD5Map.get(relativeClassFilename);
+                                    if (oldMd5.equals(md5)) {
                                         continue;
                                     } else {
-                                        logger.debug("It is a modify class:" + relativeClassFilename);
+                                        logger.debug("It is a modify class,real:" + classFullFilename + ",relative:" + relativeClassFilename + ",old md5:" + oldMd5 + ",new md5:" + md5);
                                         cacheType = CACHE_TYPE_MODIFY;
                                     }
                                 } else {
@@ -1103,6 +1105,7 @@ public final class AutoDexUtil {
             cache = readAllCombinedClassWithCache(combinedClassList, cache);
         } else {// has cache
                 // need to update cache
+            logger.info(cache.classNameByteArrayMD5Map.get("com/tencent/mm/plugin/messenger/R$anim.class"));
             Cache newCache = readAllCombinedClassWithCache(combinedClassList, cache);
             if (newCache != null) {
                 cache.changedClassNameByteArrayMd5Map = newCache.changedClassNameByteArrayMd5Map;
