@@ -1105,7 +1105,6 @@ public final class AutoDexUtil {
             cache = readAllCombinedClassWithCache(combinedClassList, cache);
         } else {// has cache
                 // need to update cache
-            logger.info(cache.classNameByteArrayMD5Map.get("com/tencent/mm/plugin/messenger/R$anim.class"));
             Cache newCache = readAllCombinedClassWithCache(combinedClassList, cache);
             if (newCache != null) {
                 cache.changedClassNameByteArrayMd5Map = newCache.changedClassNameByteArrayMd5Map;
