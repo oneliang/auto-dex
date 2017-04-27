@@ -47,7 +47,7 @@ import com.tencent.extraguard.smr.analyze.ClassHierarchyCollectVisitor;
 import com.tencent.extraguard.smr.analyze.SyntheticMethodCollectVisitor;
 import com.tencent.extraguard.smr.analyze.SyntheticMethodInlineVisitor;
 
-public class TraceClass {
+public class TestTraceClass {
 
     public static void traceProblemClass() throws Exception {
         String projectRealPath = new File(StringUtil.BLANK).getAbsolutePath();
