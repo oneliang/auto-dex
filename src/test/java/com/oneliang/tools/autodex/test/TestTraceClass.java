@@ -68,7 +68,7 @@ public class TestTraceClass {
         Cache cache = AutoDexUtil.readAllCombinedClassWithCacheFile(combinedClassList, null);
         String packageName = AutoDexUtil.parsePackageName(androidManifestFullFilename);
         String slashPackageName = packageName.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT);
-        rootClassNameSet.addAll(AutoDexUtil.findMainRootClassSet(cache.classNameByteArrayMap.keySet(), packageName, classNameList));
+        rootClassNameSet.addAll(AutoDexUtil.findMainRootClassSet(cache.classNameByteArrayMap.keySet(), packageName, classNameList, null));
 
         ClassProcessor classProcessor = new ClassProcessor();
         Retrace.readMapping(mappingFile, classProcessor);

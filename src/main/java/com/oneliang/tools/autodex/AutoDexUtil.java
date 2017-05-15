@@ -318,7 +318,7 @@ public final class AutoDexUtil {
         }
         Set<String> mainDexRootClassNameSet = new HashSet<String>();
         if (option.combinedClassList != null) {
-            mainDexRootClassNameSet.addAll(findMainRootClassSet(cache.classNameByteArrayMap.keySet(), packageName, classNameList));
+            mainDexRootClassNameSet.addAll(findMainRootClassSet(cache.classNameByteArrayMap.keySet(), packageName, classNameList, option.classNameMap));
         }
         for (String className : mainDexRootClassNameSet) {
             logger.verbose("Main root class:" + className);
@@ -1126,9 +1126,10 @@ public final class AutoDexUtil {
      * @param combinedClassNameSet
      * @param packageName
      * @param classNameList
+     * @param classNameMap
      * @return Set<String>
      */
-    public static Set<String> findMainRootClassSet(Set<String> combinedClassNameSet, String packageName, List<String> classNameList) {
+    public static Set<String> findMainRootClassSet(Set<String> combinedClassNameSet, String packageName, List<String> classNameList, Map<String, String> classNameMap) {
         List<String> regexList = new ArrayList<String>();
         Set<String> allClassSet = new HashSet<String>();
         if (classNameList != null) {
@@ -1144,6 +1145,9 @@ public final class AutoDexUtil {
                         regexList.add(regex);
                     } else {
                         className = className + Constant.Symbol.DOT + Constant.File.CLASS;
+                        if (classNameMap != null && classNameMap.containsKey(className)) {
+                            className = classNameMap.get(className);
+                        }
                         allClassSet.add(className);
                     }
                 }
@@ -1228,6 +1232,7 @@ public final class AutoDexUtil {
         public int linearAllocLimit = DEFAULT_LINEAR_ALLOC_LIMIT;
         public Result result = new Result();
         public Map<Integer, Map<String, String>> oldDexIdClassNameMap = null;
+        public Map<String, String> classNameMap = null;
 
         public Option(List<String> combinedClassList, String androidManifestFullFilename, String outputDirectory, boolean debug) {
             this.combinedClassList = combinedClassList;
