@@ -554,8 +554,8 @@ public final class AutoDexUtil {
             begin = System.currentTimeMillis();
             if (mainDexRootClassNameSet != null) {
                 begin = System.currentTimeMillis();
-                Map<Integer, Set<String>> dexClassRootSetMap = new HashMap<Integer, Set<String>>();
-                dexClassRootSetMap.put(0, mainDexRootClassNameSet);
+                Map<Integer, Set<String>> dexRootClassNameSetMap = new HashMap<Integer, Set<String>>();
+                dexRootClassNameSetMap.put(0, mainDexRootClassNameSet);
                 Queue<Integer> dexQueue = new ConcurrentLinkedQueue<Integer>();
                 dexQueue.add(0);
                 final Map<Integer, AllocStat> dexAllocStatMap = new HashMap<Integer, AllocStat>();
@@ -563,22 +563,29 @@ public final class AutoDexUtil {
                 boolean mustMainDex = true;
                 while (!dexQueue.isEmpty()) {
                     Integer dexId = dexQueue.poll();
-                    Set<String> rootClassNameSet = dexClassRootSetMap.get(dexId);
+                    Set<String> dexRootClassNameSet = dexRootClassNameSetMap.get(dexId);
                     Map<String, String> dependClassNameMap = null;
                     if (option.autoByPackage) {
-                        dependClassNameMap = findAllSamePackageClassNameMap(rootClassNameSet, samePackageClassNameListMap);
+                        dependClassNameMap = findAllSamePackageClassNameMap(dexRootClassNameSet, samePackageClassNameListMap);
                     } else {
                         if (mustMainDex) {
                             mustMainDex = false;
-                            dependClassNameMap = AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, true);
+                            dependClassNameMap = AsmUtil.findAllDependClassNameMap(dexRootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, true);
                         } else {
                             if (option.debug) {
                                 dependClassNameMap = new HashMap<String, String>();
-                                for (String className : rootClassNameSet) {
+                                for (String className : dexRootClassNameSet) {
+                                    ClassDescription classDescription = classDescriptionMap.get(className);
+                                    if (classDescription != null && classDescription.isAnnotationClass()) {
+                                        for (String dependClassName : classDescription.dependClassNameMap.keySet()) {
+                                            dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+                                            dependClassNameMap.put(dependClassName, dependClassName);
+                                        }
+                                    }
                                     dependClassNameMap.put(className, className);
                                 }
                             } else {
-                                dependClassNameMap = AsmUtil.findAllDependClassNameMap(rootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !option.debug);
+                                dependClassNameMap = AsmUtil.findAllDependClassNameMap(dexRootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !option.debug);
                             }
                         }
                     }
@@ -700,7 +707,7 @@ public final class AutoDexUtil {
                         } else {
                             set.add(key);
                         }
-                        dexClassRootSetMap.put(autoDexId, set);
+                        dexRootClassNameSetMap.put(autoDexId, set);
                         break;
                     }
                 }
