@@ -575,14 +575,8 @@ public final class AutoDexUtil {
                             if (option.debug) {
                                 dependClassNameMap = new HashMap<String, String>();
                                 for (String className : dexRootClassNameSet) {
-                                    ClassDescription classDescription = classDescriptionMap.get(className);
-                                    if (classDescription != null && classDescription.isAnnotationClass()) {
-                                        for (String dependClassName : classDescription.dependClassNameMap.keySet()) {
-                                            dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
-                                            dependClassNameMap.put(dependClassName, dependClassName);
-                                        }
-                                    }
                                     dependClassNameMap.put(className, className);
+                                    addDependClassForAnnotationClass(className, classDescriptionMap, referencedClassDescriptionListMap, dependClassNameMap);
                                 }
                             } else {
                                 dependClassNameMap = AsmUtil.findAllDependClassNameMap(dexRootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !option.debug);
@@ -1212,6 +1206,38 @@ public final class AutoDexUtil {
         }
 
         return newDexIdClassNameMap;
+    }
+
+    /**
+     * add depend class for annotation class
+     * 
+     * @param className
+     *            class suffix
+     * @param classDescriptionMap
+     * @param referencedClassDescriptionListMap
+     * @param dependClassNameMap
+     */
+    private static void addDependClassForAnnotationClass(String className, Map<String, ClassDescription> classDescriptionMap, Map<String, List<ClassDescription>> referencedClassDescriptionListMap, Map<String, String> dependClassNameMap) {
+        ClassDescription classDescription = classDescriptionMap.get(className);
+        List<ClassDescription> referencedClassDescriptionList = referencedClassDescriptionListMap.get(className);
+        if (classDescription == null || referencedClassDescriptionList == null || referencedClassDescriptionList.isEmpty()) {
+            return;
+        }
+        if (classDescription.isAnnotationClass()) {
+            for (String dependClassName : classDescription.dependClassNameMap.keySet()) {
+                dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+                dependClassNameMap.put(dependClassName, dependClassName);
+            }
+        } else {
+            for (ClassDescription referencedClassDescription : referencedClassDescriptionList) {
+                if (!referencedClassDescription.isAnnotationClass()) {
+                    continue;
+                }
+                String referencedClassName = referencedClassDescription.className;
+                referencedClassName = referencedClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+                dependClassNameMap.put(referencedClassName, referencedClassName);
+            }
+        }
     }
 
     public static final class Option {
