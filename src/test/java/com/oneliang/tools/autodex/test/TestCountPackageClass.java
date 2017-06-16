@@ -9,12 +9,16 @@ import java.util.Properties;
 import java.util.TreeMap;
 
 import com.oneliang.Constant;
+import com.oneliang.util.common.StringUtil;
 import com.oneliang.util.file.FileUtil;
 
 public class TestCountPackageClass {
     private Map<String, Counter> map = new TreeMap<String, Counter>();
 
     public void countPackageClass(String className) {
+        if (StringUtil.isBlank(className)) {
+            return;
+        }
         int lastIndex = className.lastIndexOf(Constant.Symbol.SLASH_LEFT);
         if (lastIndex > 0) {
             while (lastIndex > 0) {
