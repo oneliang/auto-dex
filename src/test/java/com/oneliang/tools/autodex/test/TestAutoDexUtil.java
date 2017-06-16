@@ -121,33 +121,34 @@ public class TestAutoDexUtil {
 //			}
 //			System.out.println("--------------------");
 			Iterator<Entry<String, String>> dexId0ClassNameIterator = result.dexIdClassNameMap.get(0).entrySet().iterator();
+			final String classPrefix="com/tencent/mm/plugin/appbrand";
 			while (dexId0ClassNameIterator.hasNext()) {
 				Entry<String, String> classNameEntry = dexId0ClassNameIterator.next();
 				String className = classNameEntry.getKey();
-				List<ClassDescription> classDescriptionList = result.referencedClassDescriptionListMap.get(className);
-				if (classDescriptionList != null) {
+				List<ClassDescription> referencedClassDescriptionList = result.referencedClassDescriptionListMap.get(className);
+				if (referencedClassDescriptionList != null) {
 					String tracedClassName = classProcessor.classNameMap.get(className);
-//					if (tracedClassName != null && tracedClassName.startsWith("com/tencent/mm/plugin/backup")) {
-//						System.out.println("c:" + classProcessor.classNameMap.get(className));
-						for (ClassDescription classDescription : classDescriptionList) {
+					if (tracedClassName != null && tracedClassName.startsWith(classPrefix)) {
+						System.out.println("c:" + classProcessor.classNameMap.get(className));
+						for (ClassDescription classDescription : referencedClassDescriptionList) {
 							String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
-//							if (!callClassName.startsWith("com/tencent/mm/plugin/backup")) {
-//								System.out.println("\tread call:" + classProcessor.classNameMap.get(callClassName));
-//							}
+							if (!callClassName.startsWith(classPrefix)) {
+								System.out.println("\treal called:" + classProcessor.classNameMap.get(callClassName));
+							}
 						}
-//					}
+					}
 //					System.out.println("c:" + classProcessor.classNameMap.get(className));
-					for (ClassDescription classDescription : classDescriptionList) {
+					for (ClassDescription classDescription : referencedClassDescriptionList) {
 						String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
 //						System.out.println("\tread call:" + classProcessor.classNameMap.get(callClassName));
 					}
 				}
-//				ClassDescription classDescription = result.classDescriptionMap.get(className);
+				ClassDescription classDescription = result.classDescriptionMap.get(className);
 //				System.out.println("c:" + classProcessor.classNameMap.get(className));
-//				for (String dependClassName : classDescription.dependClassNameList) {
-//					dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+				for (String dependClassName : classDescription.dependClassNameList) {
+					dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
 //					System.out.println("\tdepend:" + classProcessor.classNameMap.get(dependClassName));
-//				}
+				}
 			}
 		}
 		Properties properties=FileUtil.getProperties(outputDirectory+"/0.txt");
