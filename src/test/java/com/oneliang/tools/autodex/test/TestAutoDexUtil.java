@@ -92,7 +92,7 @@ public class TestAutoDexUtil {
 		List<AbstractLogger> loggerList = new ArrayList<AbstractLogger>();
 		// loggerList.add(new BaseLogger(Logger.Level.INFO));
 		loggerList.add(new FileLogger(Logger.Level.VERBOSE, new File("/D:/autodex/log.txt")));
-		Logger logger = new ComplexLogger(Logger.Level.VERBOSE, loggerList);
+		Logger logger = new ComplexLogger(Logger.Level.INFO, loggerList);
 		LoggerManager.registerLogger(AutoDexUtil.class, logger);
 		LoggerManager.registerLogger(AsmUtil.class, logger);
 		System.setOut(new PrintStream(new FileOutputStream("/D:/autodex/log.txt")));
@@ -121,7 +121,7 @@ public class TestAutoDexUtil {
 //			}
 //			System.out.println("--------------------");
 			Iterator<Entry<String, String>> dexId0ClassNameIterator = result.dexIdClassNameMap.get(0).entrySet().iterator();
-			final String classPrefix="com/tencent/mm/plugin/appbrand";
+			final String classPrefix="org/xwalk/core/Log";
 			while (dexId0ClassNameIterator.hasNext()) {
 				Entry<String, String> classNameEntry = dexId0ClassNameIterator.next();
 				String className = classNameEntry.getKey();
@@ -129,18 +129,20 @@ public class TestAutoDexUtil {
 				if (referencedClassDescriptionList != null) {
 					String tracedClassName = classProcessor.classNameMap.get(className);
 					if (tracedClassName != null && tracedClassName.startsWith(classPrefix)) {
-						System.out.println("c:" + classProcessor.classNameMap.get(className));
+//						System.out.println("c:" + classProcessor.classNameMap.get(className));
 						for (ClassDescription classDescription : referencedClassDescriptionList) {
 							String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
 							if (!callClassName.startsWith(classPrefix)) {
-								System.out.println("\treal called:" + classProcessor.classNameMap.get(callClassName));
+//								System.out.println("\treal called:" + classProcessor.classNameMap.get(callClassName));
 							}
 						}
 					}
 //					System.out.println("c:" + classProcessor.classNameMap.get(className));
 					for (ClassDescription classDescription : referencedClassDescriptionList) {
 						String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
-//						System.out.println("\tread call:" + classProcessor.classNameMap.get(callClassName));
+						if(classProcessor.classNameMap.get(callClassName)!=null&&classProcessor.classNameMap.get(callClassName).startsWith("com/tencent/mm")){
+						    System.out.println("\treal called(A be called by B):" + classProcessor.classNameMap.get(className)+","+classProcessor.classNameMap.get(callClassName));
+						}
 					}
 				}
 				ClassDescription classDescription = result.classDescriptionMap.get(className);
