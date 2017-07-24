@@ -305,10 +305,13 @@ public final class AutoDexUtil {
         List<String> classNameList = new ArrayList<String>();
         // parse android manifest and package name
         String packageName = null;
-        if (option.androidManifestFullFilename != null && FileUtil.isExist(option.androidManifestFullFilename) && !option.casual) {
-            classNameList.addAll(findMainDexClassListFromAndroidManifest(option.androidManifestFullFilename, option.attachBaseContext));
+        if (option.androidManifestFullFilename != null && FileUtil.isExist(option.androidManifestFullFilename)) {
+            if (!option.casual) {
+                classNameList.addAll(findMainDexClassListFromAndroidManifest(option.androidManifestFullFilename, option.attachBaseContext));
+            }
             packageName = parsePackageName(option.androidManifestFullFilename);
         }
+        packageName = StringUtil.nullToBlank(packageName);
         // read all combined class
         String cacheFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + "cache.txt";
         Cache cache = readAllCombinedClassWithCacheFile(option.combinedClassList, cacheFullFilename);
