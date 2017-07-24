@@ -305,7 +305,7 @@ public final class AutoDexUtil {
         List<String> classNameList = new ArrayList<String>();
         // parse android manifest and package name
         String packageName = null;
-        if (option.androidManifestFullFilename != null && FileUtil.isExist(option.androidManifestFullFilename)) {
+        if (option.androidManifestFullFilename != null && FileUtil.isExist(option.androidManifestFullFilename) && !option.casual) {
             classNameList.addAll(findMainDexClassListFromAndroidManifest(option.androidManifestFullFilename, option.attachBaseContext));
             packageName = parsePackageName(option.androidManifestFullFilename);
         }
@@ -572,7 +572,7 @@ public final class AutoDexUtil {
                             mustMainDex = false;
                             dependClassNameMap = AsmUtil.findAllDependClassNameMap(dexRootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, true);
                         } else {
-                            if (option.debug) {
+                            if (option.debug || option.casual) {
                                 dependClassNameMap = new HashMap<String, String>();
                                 for (String className : dexRootClassNameSet) {
                                     dependClassNameMap.put(className, className);
@@ -689,7 +689,7 @@ public final class AutoDexUtil {
                     for (String key : remainKeySet) {
                         dexQueue.add(autoDexId);
                         Set<String> set = new HashSet<String>();
-                        if (option.debug) {
+                        if (option.debug || option.casual) {
                             int count = 0;
                             for (String remainClassName : remainKeySet) {
                                 set.add(remainClassName);
@@ -1257,6 +1257,7 @@ public final class AutoDexUtil {
         public List<String> mainDexOtherClassList = null;
         public String outputDirectory = null;
         public boolean debug = true;
+        public boolean casual = false;
         public boolean attachBaseContext = true;
         public boolean autoByPackage = false;
         public boolean minMainDex = true;
