@@ -57,6 +57,7 @@ public final class AutoDexUtil {
 
     private static final Logger logger = LoggerManager.getLogger(AutoDexUtil.class);
 
+    private static final String CACHE_FILE = "cache";
     private static final String CLASSES = "classes";
     private static final String DEX = "dex";
     private static final String AUTO_DEX_DEX_CLASSES_PREFIX = "dexClasses";
@@ -313,7 +314,7 @@ public final class AutoDexUtil {
         }
         packageName = StringUtil.nullToBlank(packageName);
         // read all combined class
-        String cacheFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + "cache.txt";
+        String cacheFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + CACHE_FILE;
         Cache cache = readAllCombinedClassWithCacheFile(option.combinedClassList, cacheFullFilename);
         // find main root class
         if (option.mainDexOtherClassList != null) {
