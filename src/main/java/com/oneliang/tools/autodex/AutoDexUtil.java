@@ -497,7 +497,7 @@ public final class AutoDexUtil {
                 }
                 countDownLatch.await();
                 logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
-                FileUtil.deleteAllFile(splitAndDxTempDirectory);
+                // FileUtil.deleteAllFile(splitAndDxTempDirectory);
                 if (!mergeDexExceptionMap.isEmpty()) {
                     Iterator<Entry<Integer, Exception>> iterator = mergeDexExceptionMap.entrySet().iterator();
                     while (iterator.hasNext()) {
@@ -689,24 +689,26 @@ public final class AutoDexUtil {
                     }
                     // autoDexId不变的时候还要继续当前dex
                     Set<String> remainKeySet = allClassNameMap.keySet();
-                    for (String key : remainKeySet) {
-                        dexQueue.add(autoDexId);
-                        Set<String> set = new HashSet<String>();
-                        if (option.debug || option.casual) {
-                            int count = 0;
-                            for (String remainClassName : remainKeySet) {
-                                set.add(remainClassName);
-                                count++;
-                                if (count >= 500) {
-                                    break;
-                                }
-                            }
-                        } else {
-                            set.add(key);
-                        }
-                        dexRootClassNameSetMap.put(autoDexId, set);
-                        break;
+                    if (remainKeySet.isEmpty()) {
+                        continue;
                     }
+                    Iterator<String> remainKeyIterator = remainKeySet.iterator();
+                    String remainKey = remainKeyIterator.next();
+                    dexQueue.add(autoDexId);
+                    Set<String> set = new HashSet<String>();
+                    if (option.debug || option.casual) {
+                        int count = 0;
+                        for (String remainClassName : remainKeySet) {
+                            set.add(remainClassName);
+                            count++;
+                            if (count >= 500) {
+                                break;
+                            }
+                        }
+                    } else {
+                        set.add(remainKey);
+                    }
+                    dexRootClassNameSetMap.put(autoDexId, set);
                 }
                 logger.info("Caculate class dependency cost:" + (System.currentTimeMillis() - begin));
                 logger.info("remain classes:" + allClassNameMap.size());
@@ -745,6 +747,7 @@ public final class AutoDexUtil {
                     final Set<String> classNameSet = dexIdClassNameMap.get(dexId).keySet();
                     Thread thread = new Thread(new Runnable() {
                         public void run() {
+                            long begin = System.currentTimeMillis();
                             int total = classNameSet.size();
                             int subDexCount = 0, count = 0;
                             ZipOutputStream dexJarOutputStream = null;
@@ -781,7 +784,9 @@ public final class AutoDexUtil {
                                         String classesDex = outputDirectory + "/" + AUTO_DEX_DEX_CLASSES_PREFIX + dexId + Constant.Symbol.UNDERLINE + subDexCount + Constant.Symbol.DOT + Constant.File.DEX;
                                         classesDex = new File(classesDex).getAbsolutePath();
                                         if (classesJar != null) {
+                                            long dxBegin = System.currentTimeMillis();
                                             DexUtil.androidDx(classesDex, Arrays.asList(classesJar), apkDebug);
+                                            logger.info("dx sub dex:" + classesDex + ",cost:" + (System.currentTimeMillis() - dxBegin));
                                             if (subDexListMap.containsKey(dexId)) {
                                                 subDexListMap.get(dexId).add(classesDex);
                                             } else {
@@ -826,6 +831,7 @@ public final class AutoDexUtil {
                                     }
                                 }
                             }
+                            logger.info("dx dexId:" + dexId + ",cost:" + (System.currentTimeMillis() - begin));
                             splitJarCountDownLatch.countDown();
                         }
                     });
