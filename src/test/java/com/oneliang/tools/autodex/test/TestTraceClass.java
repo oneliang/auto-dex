@@ -39,6 +39,7 @@ import com.oneliang.tools.autodex.test.TestAutoDexUtil.ClassProcessor;
 import com.oneliang.tools.linearalloc.AllocClassVisitor.MethodReference;
 import com.oneliang.tools.linearalloc.LinearAllocUtil;
 import com.oneliang.tools.linearalloc.LinearAllocUtil.AllocStat;
+import com.oneliang.tools.trace.TraceClass;
 import com.oneliang.util.common.MathUtil;
 import com.oneliang.util.common.StringUtil;
 import com.oneliang.util.file.FileUtil;
@@ -110,7 +111,7 @@ public class TestTraceClass {
     }
 
     public static void traceMethodSize() throws Exception {
-        RandomAccessFile randomAccessFile = new RandomAccessFile("/D:/autoSplit/15-24/classes.dex", "r");
+        RandomAccessFile randomAccessFile = new RandomAccessFile("/D:/autodex/output/classes5.dex", "r");
         randomAccessFile.skipBytes(0x58);
         byte[] buffer = new byte[4];
         randomAccessFile.read(buffer, 0, buffer.length);
@@ -234,11 +235,24 @@ public class TestTraceClass {
         return statWrapper;
     }
 
+    public static void main2(String[] args) throws Exception{
+        List<String> combinedClassList = Arrays.asList("/D:/autodex/main.jar");
+        String mainDexList = "/D:/autodex/main-dex-list.txt";
+        String androidManifestFullFilename = "/D:/autodex/AndroidManifest.xml";
+        String mappingFile = "/D:/autodex/mapping.txt";
+        final int maxReferencedSize = Integer.MAX_VALUE;
+        String outputTraceFile="/D:/autodex/canFix.csv";
+        
+        List<String> classNameList = new ArrayList<String>();
+        classNameList.addAll(TestAutoDexUtil.readMainDexClassList(mainDexList));
+        TraceClass.traceCanFixDependencyClass(combinedClassList, classNameList, androidManifestFullFilename, mappingFile, maxReferencedSize, outputTraceFile);
+    }
+
     public static void main(String[] args) throws Exception {
         // traceClass();
         // readSuitableTrace();
-        // traceMethodSize();
-        traceProblemClass();
+         traceMethodSize();
+//        traceProblemClass();
         System.exit(0);
         String projectRealPath = new File(StringUtil.BLANK).getAbsolutePath();
         // List<AbstractLogger> loggerList = new ArrayList<AbstractLogger>();
