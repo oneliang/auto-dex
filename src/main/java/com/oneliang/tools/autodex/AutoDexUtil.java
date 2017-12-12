@@ -469,45 +469,7 @@ public final class AutoDexUtil {
             try {
                 String splitAndDxTempDirectory = outputDirectory + Constant.Symbol.SLASH_LEFT + "temp";
                 final Map<Integer, List<String>> subDexListMap = splitAndDx(cache.classNameByteArrayMap, splitAndDxTempDirectory, dexIdClassNameMap, option.debug);
-                // concurrent merge dex
-                innerBegin = System.currentTimeMillis();
-                final CountDownLatch countDownLatch = new CountDownLatch(subDexListMap.size());
-                Set<Integer> dexIdSet = subDexListMap.keySet();
-                final Map<Integer, Exception> mergeDexExceptionMap = new HashMap<Integer, Exception>();
-                for (final int dexId : dexIdSet) {
-                    String dexOutputDirectory = outputDirectory;
-                    String dexFullFilename = null;
-                    if (dexId == 0) {
-                        dexFullFilename = dexOutputDirectory + "/" + CLASSES + Constant.Symbol.DOT + DEX;
-                    } else {
-                        dexFullFilename = dexOutputDirectory + "/" + CLASSES + (dexId + 1) + Constant.Symbol.DOT + DEX;
-                    }
-                    final String finalDexFullFilename = dexFullFilename;
-                    Thread thread = new Thread(new Runnable() {
-                        public void run() {
-                            try {
-                                DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
-                            } catch (Exception e) {
-                                mergeDexExceptionMap.put(dexId, e);
-                                logger.error(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
-                            }
-                            countDownLatch.countDown();
-                        }
-                    });
-                    thread.start();
-                }
-                countDownLatch.await();
-                logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
-                // FileUtil.deleteAllFile(splitAndDxTempDirectory);
-                if (!mergeDexExceptionMap.isEmpty()) {
-                    Iterator<Entry<Integer, Exception>> iterator = mergeDexExceptionMap.entrySet().iterator();
-                    while (iterator.hasNext()) {
-                        Entry<Integer, Exception> entry = iterator.next();
-                        int dexId = entry.getKey();
-                        Exception e = entry.getValue();
-                        throw new AutoDexUtilException(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
-                    }
-                }
+                mergeDex(subDexListMap, outputDirectory);
             } catch (Exception e) {
                 throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
             }
@@ -846,6 +808,59 @@ public final class AutoDexUtil {
             throw new AutoDexUtilException(e);
         }
         return subDexListMap;
+    }
+
+    /**
+     * merge dex
+     * 
+     * @param subDexListMap
+     * @param outputDirectory
+     */
+    public static void mergeDex(final Map<Integer, List<String>> subDexListMap, String outputDirectory) {
+        // concurrent merge dex
+        long innerBegin = System.currentTimeMillis();
+        final Map<Integer, Exception> mergeDexExceptionMap = new HashMap<Integer, Exception>();
+        try {
+
+            final CountDownLatch countDownLatch = new CountDownLatch(subDexListMap.size());
+            Set<Integer> dexIdSet = subDexListMap.keySet();
+            for (final int dexId : dexIdSet) {
+                String dexOutputDirectory = outputDirectory;
+                String dexFullFilename = null;
+                if (dexId == 0) {
+                    dexFullFilename = dexOutputDirectory + "/" + CLASSES + Constant.Symbol.DOT + DEX;
+                } else {
+                    dexFullFilename = dexOutputDirectory + "/" + CLASSES + (dexId + 1) + Constant.Symbol.DOT + DEX;
+                }
+                final String finalDexFullFilename = dexFullFilename;
+                Thread thread = new Thread(new Runnable() {
+                    public void run() {
+                        try {
+                            DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
+                        } catch (Exception e) {
+                            mergeDexExceptionMap.put(dexId, e);
+                            logger.error(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
+                        }
+                        countDownLatch.countDown();
+                    }
+                });
+                thread.start();
+            }
+            countDownLatch.await();
+        } catch (Exception e) {
+            throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
+        }
+        logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
+        // FileUtil.deleteAllFile(splitAndDxTempDirectory);
+        if (!mergeDexExceptionMap.isEmpty()) {
+            Iterator<Entry<Integer, Exception>> iterator = mergeDexExceptionMap.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Entry<Integer, Exception> entry = iterator.next();
+                int dexId = entry.getKey();
+                Exception e = entry.getValue();
+                throw new AutoDexUtilException(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
+            }
+        }
     }
 
     /**
