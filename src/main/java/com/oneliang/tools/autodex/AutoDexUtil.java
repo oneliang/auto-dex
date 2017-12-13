@@ -469,7 +469,7 @@ public final class AutoDexUtil {
             try {
                 String splitAndDxTempDirectory = outputDirectory + Constant.Symbol.SLASH_LEFT + "temp";
                 final Map<Integer, List<String>> subDexListMap = splitAndDx(cache.classNameByteArrayMap, splitAndDxTempDirectory, dexIdClassNameMap, option.debug);
-                mergeDex(subDexListMap, outputDirectory);
+                mergeDex(subDexListMap, outputDirectory, splitAndDxTempDirectory);
             } catch (Exception e) {
                 throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
             }
@@ -815,8 +815,9 @@ public final class AutoDexUtil {
      * 
      * @param subDexListMap
      * @param outputDirectory
+     * @param splitAndDxTempDirectory
      */
-    public static void mergeDex(final Map<Integer, List<String>> subDexListMap, String outputDirectory) {
+    public static void mergeDex(final Map<Integer, List<String>> subDexListMap, String outputDirectory, String splitAndDxTempDirectory) {
         // concurrent merge dex
         long innerBegin = System.currentTimeMillis();
         final Map<Integer, Exception> mergeDexExceptionMap = new HashMap<Integer, Exception>();
@@ -851,7 +852,7 @@ public final class AutoDexUtil {
             throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
         }
         logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
-        // FileUtil.deleteAllFile(splitAndDxTempDirectory);
+        FileUtil.deleteAllFile(splitAndDxTempDirectory);
         if (!mergeDexExceptionMap.isEmpty()) {
             Iterator<Entry<Integer, Exception>> iterator = mergeDexExceptionMap.entrySet().iterator();
             while (iterator.hasNext()) {
