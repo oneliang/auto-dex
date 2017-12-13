@@ -37,6 +37,7 @@ public class TestAutoDexUtil {
 
     private static final List<String> combinedClassList = Arrays.asList("/D:/autodex/main.jar");
     private static final String androidManifestFullFilename = "/D:/autodex/AndroidManifest.xml";
+    private static final String cacheFullFilename = "/D:/autodex/cache";
     // private static final String
     // mainDexOtherClasses=".app.FirstCrashCatcher,.app.MMApplicationWrapper,.ui.NoRomSpaceDexUI,.svg.SVGPreload,.svg.SVGBuildConfig,.plugin.exdevice,.jni.C2JavaExDevice,.svg.graphics.SVGCodeDrawable,com.tenpay.cert.CertUtil,.svg.WeChatSVGRenderC2Java,com.tencent.kingkong.database.SQLiteDoneException,.crash.CrashUploaderService,.app.WorkerProfile,.app.PusherProfile,.app.ToolsProfile,.app.SandBoxProfile,.app.ExDeviceProfile,.app.PatchProfile,.app.TMAssistantProfile,.app.NoSpaceProfile,.plugin.sandbox.SubCoreSandBox,.sdk.platformtools.CrashMonitorForJni,.jni.utils.UtilsJni,.plugin.accountsync.Plugin,.plugin.sandbox.Plugin,.ui.base.preference.PreferenceScreen,.lan_cs.Client,.lan_cs.Server,.svg.SVGResourceRegister,.jni.platformcomm.PlatformCommBridge,.app.MMApplicationLike,.app.Application,com.tencent.tinker.loader.**";
     private static final String outputDirectory = "/D:/autodex/output";
@@ -103,6 +104,7 @@ public class TestAutoDexUtil {
         FileUtil.deleteAllFile(outputDirectory);
         AutoDexUtil.Option option = new AutoDexUtil.Option(combinedClassList, androidManifestFullFilename, outputDirectory, debug);
 //        option.minMainDex = true;
+//        option.cacheFullFilename = cacheFullFilename;
         option.casual = true;
         // option.methodLimit = 0xE000;
         option.mainDexOtherClassList = readMainDexClassList(mainDexList);// Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA));

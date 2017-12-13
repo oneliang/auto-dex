@@ -314,7 +314,12 @@ public final class AutoDexUtil {
         }
         packageName = StringUtil.nullToBlank(packageName);
         // read all combined class
-        String cacheFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + CACHE_FILE;
+        String cacheFullFilename = null;
+        if (option.cacheFullFilename != null && FileUtil.isExist(option.cacheFullFilename)) {
+            cacheFullFilename = option.cacheFullFilename;
+        } else {
+            cacheFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + CACHE_FILE;
+        }
         Cache cache = readAllCombinedClassWithCacheFile(option.combinedClassList, cacheFullFilename);
         // find main root class
         if (option.mainDexOtherClassList != null) {
@@ -329,7 +334,8 @@ public final class AutoDexUtil {
         }
         Map<Integer, Map<String, String>> dexIdClassNameMap = null;
         // find all dex class
-        if (cache.dexIdClassNameMap != null && !cache.dexIdClassNameMap.isEmpty()) {
+        //option.combinedClassList == null is only cache,full autodex when is only cache
+        if (option.combinedClassList != null && cache.dexIdClassNameMap != null && !cache.dexIdClassNameMap.isEmpty()) {
             logger.info("[Cache] dexId size:" + cache.dexIdClassNameMap.size());
             dexIdClassNameMap = cache.dexIdClassNameMap;
             result.dexIdClassNameMap = dexIdClassNameMap;
@@ -1113,6 +1119,16 @@ public final class AutoDexUtil {
     }
 
     /**
+     * read all class with cache file
+     * 
+     * @param cacheFullFilename
+     * @return Cache
+     */
+    public static Cache readAllClassWithCacheFile(String cacheFullFilename) {
+        return readAllCombinedClassWithCacheFile(null, cacheFullFilename);
+    }
+
+    /**
      * read all combined class
      * 
      * @param combinedClassList
@@ -1120,6 +1136,13 @@ public final class AutoDexUtil {
      */
     public static Cache readAllCombinedClassWithCacheFile(List<String> combinedClassList, String cacheFullFilename) {
         long begin = System.currentTimeMillis();
+        boolean onlyCache = false;
+        if (combinedClassList == null || combinedClassList.isEmpty()) {
+            onlyCache = true;
+        }
+        if (onlyCache && !FileUtil.isExist(cacheFullFilename)) {
+            throw new AutoDexUtilException(cacheFullFilename + " is not exist");
+        }
         Cache cache = null;
         if (FileUtil.isExist(cacheFullFilename)) {
             try {
@@ -1127,6 +1150,9 @@ public final class AutoDexUtil {
             } catch (Exception e) {
                 logger.error("Read cache exception.", e);
             }
+        }
+        if (onlyCache) {
+            return cache;
         }
         if (cache == null) {
             cache = readAllCombinedClassWithCache(combinedClassList, cache);
@@ -1279,6 +1305,7 @@ public final class AutoDexUtil {
                                                               // 65535
         public static final int DEFAULT_LINEAR_ALLOC_LIMIT = Integer.MAX_VALUE;
         public List<String> combinedClassList = null;
+        public String cacheFullFilename = null;
         public String androidManifestFullFilename = null;
         public List<String> mainDexOtherClassList = null;
         public String outputDirectory = null;
