@@ -334,7 +334,8 @@ public final class AutoDexUtil {
         }
         Map<Integer, Map<String, String>> dexIdClassNameMap = null;
         // find all dex class
-        //option.combinedClassList == null is only cache,full autodex when is only cache
+        // option.combinedClassList == null is only cache,full autodex when is
+        // only cache
         if (option.combinedClassList != null && cache.dexIdClassNameMap != null && !cache.dexIdClassNameMap.isEmpty()) {
             logger.info("[Cache] dexId size:" + cache.dexIdClassNameMap.size());
             dexIdClassNameMap = cache.dexIdClassNameMap;
@@ -548,7 +549,7 @@ public final class AutoDexUtil {
                                 dependClassNameMap = new HashMap<String, String>();
                                 for (String className : dexRootClassNameSet) {
                                     dependClassNameMap.put(className, className);
-                                    addDependClassForAnnotationClass(className, classDescriptionMap, referencedClassDescriptionListMap, dependClassNameMap);
+                                    addDependClassForAnnotationClass(className, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, dependClassNameMap);
                                 }
                             } else {
                                 dependClassNameMap = AsmUtil.findAllDependClassNameMap(dexRootClassNameSet, classDescriptionMap, referencedClassDescriptionListMap, allClassNameMap, !option.debug);
@@ -858,7 +859,7 @@ public final class AutoDexUtil {
             throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
         }
         logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
-        FileUtil.deleteAllFile(splitAndDxTempDirectory);
+        // FileUtil.deleteAllFile(splitAndDxTempDirectory);
         if (!mergeDexExceptionMap.isEmpty()) {
             Iterator<Entry<Integer, Exception>> iterator = mergeDexExceptionMap.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -1269,7 +1270,7 @@ public final class AutoDexUtil {
      * @param referencedClassDescriptionListMap
      * @param dependClassNameMap
      */
-    private static void addDependClassForAnnotationClass(String className, Map<String, ClassDescription> classDescriptionMap, Map<String, List<ClassDescription>> referencedClassDescriptionListMap, Map<String, String> dependClassNameMap) {
+    private static void addDependClassForAnnotationClass(String className, Map<String, ClassDescription> classDescriptionMap, Map<String, List<ClassDescription>> referencedClassDescriptionListMap, Map<String, String> allClassNameMap, Map<String, String> dependClassNameMap) {
         ClassDescription classDescription = classDescriptionMap.get(className);
         List<ClassDescription> referencedClassDescriptionList = referencedClassDescriptionListMap.get(className);
         if (classDescription == null || referencedClassDescriptionList == null || referencedClassDescriptionList.isEmpty()) {
@@ -1278,6 +1279,9 @@ public final class AutoDexUtil {
         if (classDescription.isAnnotationClass()) {
             for (String dependClassName : classDescription.dependClassNameMap.keySet()) {
                 dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+                if (!allClassNameMap.containsKey(dependClassName)) {
+                    continue;
+                }
                 dependClassNameMap.put(dependClassName, dependClassName);
             }
         } else {
@@ -1287,6 +1291,9 @@ public final class AutoDexUtil {
                 }
                 String referencedClassName = referencedClassDescription.className;
                 referencedClassName = referencedClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+                if (!allClassNameMap.containsKey(referencedClassName)) {
+                    continue;
+                }
                 dependClassNameMap.put(referencedClassName, referencedClassName);
             }
         }
