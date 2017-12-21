@@ -859,7 +859,7 @@ public final class AutoDexUtil {
             throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
         }
         logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
-        // FileUtil.deleteAllFile(splitAndDxTempDirectory);
+        FileUtil.deleteAllFile(splitAndDxTempDirectory);
         if (!mergeDexExceptionMap.isEmpty()) {
             Iterator<Entry<Integer, Exception>> iterator = mergeDexExceptionMap.entrySet().iterator();
             while (iterator.hasNext()) {
