@@ -1268,6 +1268,7 @@ public final class AutoDexUtil {
      *            class suffix
      * @param classDescriptionMap
      * @param referencedClassDescriptionListMap
+     * @param allClassNameMap
      * @param dependClassNameMap
      */
     private static void addDependClassForAnnotationClass(String className, Map<String, ClassDescription> classDescriptionMap, Map<String, List<ClassDescription>> referencedClassDescriptionListMap, Map<String, String> allClassNameMap, Map<String, String> dependClassNameMap) {
