@@ -439,12 +439,21 @@ public final class AutoDexUtil {
                 }
             }
             // dx
+            boolean hasException = false;
             for (int dexId : changedDexIdClassNameMap.keySet()) {
                 String incrementalJarFullFilename = incrementalDirectory + Constant.Symbol.SLASH_LEFT + dexId + Constant.Symbol.DOT + Constant.File.JAR;
                 String incrementalDexFullFilename = incrementalDirectory + Constant.Symbol.SLASH_LEFT + CLASSES + (dexId == 0 ? StringUtil.BLANK : (dexId + 1)) + Constant.Symbol.DOT + DEX;
-                DexUtil.androidDx(incrementalDexFullFilename, Arrays.asList(incrementalJarFullFilename), option.debug);
-                String dexFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + CLASSES + (dexId == 0 ? StringUtil.BLANK : (dexId + 1)) + Constant.Symbol.DOT + DEX;
-                DexUtil.androidMergeDex(dexFullFilename, Arrays.asList(incrementalDexFullFilename, dexFullFilename));
+                try {
+                    DexUtil.androidDx(incrementalDexFullFilename, Arrays.asList(incrementalJarFullFilename), option.debug);
+                    String dexFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + CLASSES + (dexId == 0 ? StringUtil.BLANK : (dexId + 1)) + Constant.Symbol.DOT + DEX;
+                    DexUtil.androidMergeDex(dexFullFilename, Arrays.asList(incrementalDexFullFilename, dexFullFilename));
+                } catch (Exception e) {
+                    hasException = true;
+                    logger.error(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
+                }
+            }
+            if (hasException) {
+                throw new AutoDexUtilException(Constant.Base.EXCEPTION + " see above errors");
             }
             // update cache
             for (int dexId : changedDexIdClassNameMap.keySet()) {
@@ -827,7 +836,7 @@ public final class AutoDexUtil {
     public static void mergeDex(final Map<Integer, List<String>> subDexListMap, String outputDirectory, String splitAndDxTempDirectory) {
         // concurrent merge dex
         long innerBegin = System.currentTimeMillis();
-        final Map<Integer, Exception> mergeDexExceptionMap = new HashMap<Integer, Exception>();
+        final List<Integer> exceptionDexIdList = new ArrayList<Integer>();
         try {
 
             final CountDownLatch countDownLatch = new CountDownLatch(subDexListMap.size());
@@ -846,7 +855,7 @@ public final class AutoDexUtil {
                         try {
                             DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
                         } catch (Exception e) {
-                            mergeDexExceptionMap.put(dexId, e);
+                            exceptionDexIdList.add(dexId);
                             logger.error(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
                         }
                         countDownLatch.countDown();
@@ -860,14 +869,8 @@ public final class AutoDexUtil {
         }
         logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
         FileUtil.deleteAllFile(splitAndDxTempDirectory);
-        if (!mergeDexExceptionMap.isEmpty()) {
-            Iterator<Entry<Integer, Exception>> iterator = mergeDexExceptionMap.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Entry<Integer, Exception> entry = iterator.next();
-                int dexId = entry.getKey();
-                Exception e = entry.getValue();
-                throw new AutoDexUtilException(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
-            }
+        if (!exceptionDexIdList.isEmpty()) {
+            throw new AutoDexUtilException(Constant.Base.EXCEPTION + " see above errors");
         }
     }
 
