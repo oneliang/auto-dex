@@ -453,7 +453,7 @@ public final class AutoDexUtil {
                 }
             }
             if (hasException) {
-                throw new AutoDexUtilException(Constant.Base.EXCEPTION + " see above errors");
+                throw new AutoDexUtilException(Constant.Base.EXCEPTION + ", see above errors.");
             }
             // update cache
             for (int dexId : changedDexIdClassNameMap.keySet()) {
@@ -870,7 +870,7 @@ public final class AutoDexUtil {
         logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
         FileUtil.deleteAllFile(splitAndDxTempDirectory);
         if (!exceptionDexIdList.isEmpty()) {
-            throw new AutoDexUtilException(Constant.Base.EXCEPTION + " see above errors");
+            throw new AutoDexUtilException(Constant.Base.EXCEPTION + ", see above errors.");
         }
     }
 
