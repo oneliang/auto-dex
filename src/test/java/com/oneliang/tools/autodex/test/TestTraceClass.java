@@ -30,7 +30,7 @@ import java.util.zip.ZipOutputStream;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 
-import com.oneliang.Constant;
+import com.oneliang.Constants;
 import com.oneliang.thirdparty.asm.util.AsmUtil;
 import com.oneliang.thirdparty.asm.util.ClassDescription;
 import com.oneliang.tools.autodex.AutoDexUtil;
@@ -68,7 +68,7 @@ public class TestTraceClass {
         Set<String> rootClassNameSet = new HashSet<String>();
         Cache cache = AutoDexUtil.readAllCombinedClassWithCacheFile(combinedClassList, null);
         String packageName = AutoDexUtil.parsePackageName(androidManifestFullFilename);
-        String slashPackageName = packageName.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT);
+        String slashPackageName = packageName.replace(Constants.Symbol.DOT, Constants.Symbol.SLASH_LEFT);
         rootClassNameSet.addAll(AutoDexUtil.findMainRootClassSet(cache.classNameByteArrayMap.keySet(), packageName, classNameList, null));
 
         ClassProcessor classProcessor = new ClassProcessor();
@@ -123,12 +123,12 @@ public class TestTraceClass {
         String traceFullFilename = "/C:Users/oneliang/Desktop/default.csv";
         BufferedReader bufferedReader = null;
         try {
-            bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(traceFullFilename), Constant.Encoding.UTF8));
+            bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(traceFullFilename), Constants.Encoding.UTF8));
             String line = null;
             while ((line = bufferedReader.readLine()) != null) {
                 String trace = line.trim();
                 if (StringUtil.isNotBlank(trace)) {
-                    String[] dataArray = trace.split(Constant.Symbol.COMMA);
+                    String[] dataArray = trace.split(Constants.Symbol.COMMA);
                     String className = dataArray[0];
                     boolean isPublic = Boolean.parseBoolean(dataArray[1].trim().toLowerCase());
                     int dependSize = Integer.parseInt(dataArray[2].trim().toLowerCase());
@@ -183,7 +183,7 @@ public class TestTraceClass {
             ClassDescription classDescription = classDescriptionMap.get(className);
             classNameMap = new HashMap<String, String>();
             for (String key : classDescription.dependClassNameMap.keySet()) {
-                String dependClassName = key + Constant.Symbol.DOT + Constant.File.CLASS;
+                String dependClassName = key + Constants.Symbol.DOT + Constants.File.CLASS;
                 classNameMap.put(dependClassName, dependClassName);
             }
             // System.out.println("direct:");
@@ -277,7 +277,7 @@ public class TestTraceClass {
         while (enumeration.hasMoreElements()) {
             ZipEntry zipEntry = enumeration.nextElement();
             String zipEntryName = zipEntry.getName();
-            if (!zipEntryName.endsWith(Constant.Symbol.DOT + Constant.File.CLASS)) {
+            if (!zipEntryName.endsWith(Constants.Symbol.DOT + Constants.File.CLASS)) {
                 continue;
             }
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -335,7 +335,7 @@ public class TestTraceClass {
         while (enumeration.hasMoreElements()) {
             ZipEntry zipEntry = enumeration.nextElement();
             String zipEntryName = zipEntry.getName();
-            if (!zipEntryName.endsWith(Constant.Symbol.DOT + Constant.File.CLASS)) {
+            if (!zipEntryName.endsWith(Constants.Symbol.DOT + Constants.File.CLASS)) {
                 continue;
             }
             InputStream inputStream = zipFile.getInputStream(zipEntry);

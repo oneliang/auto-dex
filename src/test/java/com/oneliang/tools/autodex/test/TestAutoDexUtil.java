@@ -17,7 +17,7 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 
-import com.oneliang.Constant;
+import com.oneliang.Constants;
 import com.oneliang.thirdparty.asm.util.AsmUtil;
 import com.oneliang.thirdparty.asm.util.ClassDescription;
 import com.oneliang.tools.autodex.AutoDexUtil;
@@ -49,7 +49,7 @@ public class TestAutoDexUtil {
         List<String> mainDexClassList = new ArrayList<String>();
         BufferedReader bufferedReader = null;
         try {
-            bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(mainDexList), Constant.Encoding.UTF8));
+            bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(mainDexList), Constants.Encoding.UTF8));
             String line = null;
             while ((line = bufferedReader.readLine()) != null) {
                 String mainDexClass = line.trim();
@@ -84,12 +84,12 @@ public class TestAutoDexUtil {
             stringBuilder.append(classProcessor.classNameMap.get(className.toString()));
             stringBuilder.append(StringUtil.LF_STRING);
         }
-        FileUtil.writeFile(outputDirectory + "/0_2660_retrace.txt", stringBuilder.toString().getBytes(Constant.Encoding.UTF8));
+        FileUtil.writeFile(outputDirectory + "/0_2660_retrace.txt", stringBuilder.toString().getBytes(Constants.Encoding.UTF8));
     }
 
     public static void main(String[] args) throws Exception {
-//        traceClassDepend(Arrays.asList("com/tencent/mm/ui/NoRomSpaceDexUI.class"));
-//        System.exit(0);
+//         traceClassDepend(Arrays.asList("com/tencent/mm/app/MMApplicationWrapper.class"));
+//         System.exit(0);
         // String
         // classFullFilename="E:/Dandelion/java/githubWorkspace/auto-dex/bin/com/oneliang/tools/autodex/test/InnerClass$InnerInterface.class";
         // AsmUtil.traceClass(classFullFilename, new PrintWriter(System.out));
@@ -103,11 +103,11 @@ public class TestAutoDexUtil {
         System.setOut(new PrintStream(new FileOutputStream("/D:/autodex/log.txt")));
         FileUtil.deleteAllFile(outputDirectory);
         AutoDexUtil.Option option = new AutoDexUtil.Option(combinedClassList, androidManifestFullFilename, outputDirectory, debug);
-//        option.minMainDex = true;
-//        option.cacheFullFilename = cacheFullFilename;
+        // option.minMainDex = true;
+        // option.cacheFullFilename = cacheFullFilename;
         option.casual = true;
         // option.methodLimit = 0xE000;
-        option.mainDexOtherClassList = readMainDexClassList(mainDexList);// Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA));
+        option.mainDexOtherClassList = readMainDexClassList(mainDexList);// Arrays.asList(mainDexOtherClasses.split(Constants.Symbol.COMMA));
         option.oldDexIdClassNameMap = getOldDexIdClassNameMap();
         AutoDexUtil.Result result = new AutoDexUtil.Result();
         try {
@@ -125,7 +125,7 @@ public class TestAutoDexUtil {
             // if (classDescriptionList != null) {
             // for (ClassDescription classDescription : classDescriptionList) {
             // String callClassName = classDescription.className +
-            // Constant.Symbol.DOT + Constant.File.CLASS;
+            // Constants.Symbol.DOT + Constants.File.CLASS;
             // System.out.println("call:" +
             // classProcessor.classNameMap.get(callClassName));
             // }
@@ -133,7 +133,7 @@ public class TestAutoDexUtil {
             // System.out.println("--------------------");
             Map<String, String> dexId0ClassNameMap = result.dexIdClassNameMap.get(0);
             Iterator<Entry<String, String>> dexId0ClassNameIterator = result.dexIdClassNameMap.get(0).entrySet().iterator();
-            final String classPrefix = "com/tencent/mm/plugin/mmsight";
+            final String classPrefix = "com/tencent/mm/app/MMApplicationWrapper.class";
             while (dexId0ClassNameIterator.hasNext()) {
                 Entry<String, String> classNameEntry = dexId0ClassNameIterator.next();
                 String className = classNameEntry.getKey();
@@ -144,7 +144,7 @@ public class TestAutoDexUtil {
                         // System.out.println("c:" +
                         // classProcessor.classNameMap.get(className));
                         for (ClassDescription classDescription : referencedClassDescriptionList) {
-                            String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
+                            String callClassName = classDescription.className + Constants.Symbol.DOT + Constants.File.CLASS;
                             if (!dexId0ClassNameMap.containsKey(callClassName)) {// call
                                                                                  // class
                                                                                  // not
@@ -154,18 +154,23 @@ public class TestAutoDexUtil {
                                 continue;
                             }
                             if (!callClassName.startsWith(classPrefix)) {
-//                                System.out.println("\treal called(A be called by B):" + classProcessor.classNameMap.get(className) + "," + classProcessor.classNameMap.get(callClassName));
+                                // System.out.println("\treal called(A be called
+                                // by B):" +
+                                // classProcessor.classNameMap.get(className) +
+                                // "," +
+                                // classProcessor.classNameMap.get(callClassName));
                             }
                         }
                     }
                     // System.out.println("c:" +
                     // classProcessor.classNameMap.get(className));
                     for (ClassDescription classDescription : referencedClassDescriptionList) {
-                        String callClassName = classDescription.className + Constant.Symbol.DOT + Constant.File.CLASS;
+                        String callClassName = classDescription.className + Constants.Symbol.DOT + Constants.File.CLASS;
                         if (classProcessor.classNameMap.get(callClassName) != null && classProcessor.classNameMap.get(callClassName).startsWith("com/tencent/mm")) {
                             // System.out.println("\treal called(A be called by
-                            // B):" +
-                            // classProcessor.classNameMap.get(className)+","+classProcessor.classNameMap.get(callClassName));
+                            // B):" + classProcessor.classNameMap.get(className)
+                            // + "," +
+                            // classProcessor.classNameMap.get(callClassName));
                         }
                     }
                 }
@@ -173,13 +178,13 @@ public class TestAutoDexUtil {
                 // System.out.println("c:" +
                 // classProcessor.classNameMap.get(className));
                 for (String dependClassName : classDescription.dependClassNameList) {
-                    dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+                    dependClassName = dependClassName + Constants.Symbol.DOT + Constants.File.CLASS;
                     // System.out.println("\tdepend:" +
                     // classProcessor.classNameMap.get(dependClassName));
                 }
             }
         }
-        Properties properties = FileUtil.getProperties(outputDirectory + "/1.txt");
+        Properties properties = FileUtil.getProperties(outputDirectory + "/0.txt");
         Iterator<Entry<Object, Object>> iterator = properties.entrySet().iterator();
         StringBuilder stringBuilder = new StringBuilder();
         while (iterator.hasNext()) {
@@ -187,7 +192,7 @@ public class TestAutoDexUtil {
             stringBuilder.append(classProcessor.classNameMap.get(className.toString()));
             stringBuilder.append(StringUtil.LF_STRING);
         }
-        FileUtil.writeFile(outputDirectory + "/1_retrace.txt", stringBuilder.toString().getBytes(Constant.Encoding.UTF8));
+        FileUtil.writeFile(outputDirectory + "/0_retrace.txt", stringBuilder.toString().getBytes(Constants.Encoding.UTF8));
     }
 
     public static class ClassProcessor implements Processor {
@@ -200,7 +205,7 @@ public class TestAutoDexUtil {
         }
 
         public void processClassMapping(String className, String newClassName) {
-            classNameMap.put(newClassName.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT) + Constant.Symbol.DOT + Constant.File.CLASS, className.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT) + Constant.Symbol.DOT + Constant.File.CLASS);
+            classNameMap.put(newClassName.replace(Constants.Symbol.DOT, Constants.Symbol.SLASH_LEFT) + Constants.Symbol.DOT + Constants.File.CLASS, className.replace(Constants.Symbol.DOT, Constants.Symbol.SLASH_LEFT) + Constants.Symbol.DOT + Constants.File.CLASS);
         }
     };
 
@@ -218,8 +223,8 @@ public class TestAutoDexUtil {
             AutoDexUtil.Option option = new AutoDexUtil.Option(combinedClassList, androidManifestFullFilename, outputDirectory, debug);
             option.minMainDex = false;
             option.mainDexOtherClassList = readMainDexClassList(mainDexList);
-            // option.mainDexOtherClassList=Arrays.asList(mainDexOtherClasses.split(Constant.Symbol.COMMA));
-            String cacheFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + "cache.txt";
+            // option.mainDexOtherClassList=Arrays.asList(mainDexOtherClasses.split(Constants.Symbol.COMMA));
+            String cacheFullFilename = outputDirectory + Constants.Symbol.SLASH_LEFT + "cache.txt";
             Cache cache = AutoDexUtil.readAllCombinedClassWithCacheFile(option.combinedClassList, cacheFullFilename);
             Map<String, List<ClassDescription>> referencedClassDescriptionListMap = new HashMap<String, List<ClassDescription>>();
             Map<String, ClassDescription> classDescriptionMap = new HashMap<String, ClassDescription>();

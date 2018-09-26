@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.oneliang.Constant;
+import com.oneliang.Constants;
 import com.oneliang.thirdparty.asm.util.AsmUtil;
 import com.oneliang.thirdparty.asm.util.ClassDescription;
 import com.oneliang.tools.autodex.AutoDexUtil;
@@ -43,7 +43,7 @@ public class TraceClass {
         Set<String> rootClassNameSet = new HashSet<String>();
         AutoDexUtil.Cache cache = AutoDexUtil.readAllCombinedClassWithCacheFile(combinedClassList, null);
         String packageName = AutoDexUtil.parsePackageName(androidManifestFullFilename);
-        String slashPackageName = packageName.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT);
+        String slashPackageName = packageName.replace(Constants.Symbol.DOT, Constants.Symbol.SLASH_LEFT);
         rootClassNameSet.addAll(AutoDexUtil.findMainRootClassSet(cache.classNameByteArrayMap.keySet(), packageName, classNameList, null));
 
         ClassProcessor classProcessor = new ClassProcessor();
@@ -85,7 +85,7 @@ public class TraceClass {
                 stringBuilder.append(StringUtil.LF_STRING);
             }
         }
-        FileUtil.writeFile(outputTraceFile, stringBuilder.toString().getBytes(Constant.Encoding.UTF8));
+        FileUtil.writeFile(outputTraceFile, stringBuilder.toString().getBytes(Constants.Encoding.UTF8));
     }
 
     private static StatWrapper caculate(String className, Map<String, ClassDescription> classDescriptionMap, Map<String, List<ClassDescription>> referencedClassDescriptionListMap, Map<String, String> allClassNameMap, Map<String, byte[]> classNameByteArrayMap, boolean onlyDirectDepend) throws Exception {
@@ -96,7 +96,7 @@ public class TraceClass {
             ClassDescription classDescription = classDescriptionMap.get(className);
             classNameMap = new HashMap<String, String>();
             for (String key : classDescription.dependClassNameMap.keySet()) {
-                String dependClassName = key + Constant.Symbol.DOT + Constant.File.CLASS;
+                String dependClassName = key + Constants.Symbol.DOT + Constants.File.CLASS;
                 classNameMap.put(dependClassName, dependClassName);
             }
             // System.out.println("direct:");
@@ -163,7 +163,7 @@ public class TraceClass {
         }
 
         public void processClassMapping(String className, String newClassName) {
-            classNameMap.put(newClassName.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT) + Constant.Symbol.DOT + Constant.File.CLASS, className.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT) + Constant.Symbol.DOT + Constant.File.CLASS);
+            classNameMap.put(newClassName.replace(Constants.Symbol.DOT, Constants.Symbol.SLASH_LEFT) + Constants.Symbol.DOT + Constants.File.CLASS, className.replace(Constants.Symbol.DOT, Constants.Symbol.SLASH_LEFT) + Constants.Symbol.DOT + Constants.File.CLASS);
         }
     }
 

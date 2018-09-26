@@ -17,7 +17,7 @@ import java.util.zip.ZipFile;
 
 import org.objectweb.asm.ClassReader;
 
-import com.oneliang.Constant;
+import com.oneliang.Constants;
 import com.oneliang.thirdparty.asm.util.AsmUtil;
 import com.oneliang.thirdparty.asm.util.ClassDescription;
 import com.oneliang.tools.linearalloc.AllocClassVisitor.MethodReference;
@@ -96,7 +96,7 @@ public final class LinearAllocUtil {
             Enumeration<? extends ZipEntry> enumeration = zipFile.entries();
             while (enumeration.hasMoreElements()) {
                 ZipEntry zipEntry = enumeration.nextElement();
-                if (zipEntry.getName().endsWith(Constant.Symbol.DOT + Constant.File.CLASS)) {
+                if (zipEntry.getName().endsWith(Constants.Symbol.DOT + Constants.File.CLASS)) {
                     InputStream inputStream = null;
                     try {
                         inputStream = zipFile.getInputStream(zipEntry);

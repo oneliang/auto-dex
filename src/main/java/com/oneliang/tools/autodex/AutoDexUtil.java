@@ -37,7 +37,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import com.oneliang.Constant;
+import com.oneliang.Constants;
 import com.oneliang.thirdparty.asm.util.AsmUtil;
 import com.oneliang.thirdparty.asm.util.AsmUtil.FieldProcessor;
 import com.oneliang.thirdparty.asm.util.ClassDescription;
@@ -318,7 +318,7 @@ public final class AutoDexUtil {
         if (option.cacheFullFilename != null && FileUtil.isExist(option.cacheFullFilename)) {
             cacheFullFilename = option.cacheFullFilename;
         } else {
-            cacheFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + CACHE_FILE;
+            cacheFullFilename = outputDirectory + Constants.Symbol.SLASH_LEFT + CACHE_FILE;
         }
         Cache cache = readAllCombinedClassWithCacheFile(option.combinedClassList, cacheFullFilename);
         // find main root class
@@ -340,7 +340,7 @@ public final class AutoDexUtil {
             logger.info("[Cache] dexId size:" + cache.dexIdClassNameMap.size());
             dexIdClassNameMap = cache.dexIdClassNameMap;
             result.dexIdClassNameMap = dexIdClassNameMap;
-            String incrementalDirectory = outputDirectory + Constant.Symbol.SLASH_LEFT + "incremental";
+            String incrementalDirectory = outputDirectory + Constants.Symbol.SLASH_LEFT + "incremental";
             FileUtil.deleteAllFile(incrementalDirectory);
             FileUtil.createDirectory(incrementalDirectory);
             Map<Integer, Map<String, String>> changedDexIdClassNameMap = new HashMap<Integer, Map<String, String>>();
@@ -383,7 +383,7 @@ public final class AutoDexUtil {
                         int dexId = dexIdClassNameEntry.getKey();
                         Map<String, String> classNameMap = dexIdClassNameEntry.getValue();
                         if (classNameMap.containsKey(className)) {
-                            // FileUtil.writeFile(incrementalDirectory+Constant.Symbol.SLASH_LEFT+dexId+Constant.Symbol.SLASH_LEFT+modifiedEntry.getKey(),
+                            // FileUtil.writeFile(incrementalDirectory+Constants.Symbol.SLASH_LEFT+dexId+Constants.Symbol.SLASH_LEFT+modifiedEntry.getKey(),
                             // modifiedEntry.getValue());
 
                             Map<String, String> changedClassNameMap = null;
@@ -415,7 +415,7 @@ public final class AutoDexUtil {
                 int dexId = dexIdEntry.getKey();
                 logger.info("[Cache] create jar,dexId:" + dexId);
                 Map<String, byte[]> classNameByteArrayMap = dexIdEntry.getValue();
-                String incrementalJarFullFilename = incrementalDirectory + Constant.Symbol.SLASH_LEFT + dexId + Constant.Symbol.DOT + Constant.File.JAR;
+                String incrementalJarFullFilename = incrementalDirectory + Constants.Symbol.SLASH_LEFT + dexId + Constants.Symbol.DOT + Constants.File.JAR;
                 FileUtil.createFile(incrementalJarFullFilename);
                 ZipOutputStream zipOutputStream = null;
                 try {
@@ -441,19 +441,19 @@ public final class AutoDexUtil {
             // dx
             boolean hasException = false;
             for (int dexId : changedDexIdClassNameMap.keySet()) {
-                String incrementalJarFullFilename = incrementalDirectory + Constant.Symbol.SLASH_LEFT + dexId + Constant.Symbol.DOT + Constant.File.JAR;
-                String incrementalDexFullFilename = incrementalDirectory + Constant.Symbol.SLASH_LEFT + CLASSES + (dexId == 0 ? StringUtil.BLANK : (dexId + 1)) + Constant.Symbol.DOT + DEX;
+                String incrementalJarFullFilename = incrementalDirectory + Constants.Symbol.SLASH_LEFT + dexId + Constants.Symbol.DOT + Constants.File.JAR;
+                String incrementalDexFullFilename = incrementalDirectory + Constants.Symbol.SLASH_LEFT + CLASSES + (dexId == 0 ? StringUtil.BLANK : (dexId + 1)) + Constants.Symbol.DOT + DEX;
                 try {
                     DexUtil.androidDx(incrementalDexFullFilename, Arrays.asList(incrementalJarFullFilename), option.debug);
-                    String dexFullFilename = outputDirectory + Constant.Symbol.SLASH_LEFT + CLASSES + (dexId == 0 ? StringUtil.BLANK : (dexId + 1)) + Constant.Symbol.DOT + DEX;
+                    String dexFullFilename = outputDirectory + Constants.Symbol.SLASH_LEFT + CLASSES + (dexId == 0 ? StringUtil.BLANK : (dexId + 1)) + Constants.Symbol.DOT + DEX;
                     DexUtil.androidMergeDex(dexFullFilename, Arrays.asList(incrementalDexFullFilename, dexFullFilename));
                 } catch (Exception e) {
                     hasException = true;
-                    logger.error(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
+                    logger.error(Constants.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
                 }
             }
             if (hasException) {
-                throw new AutoDexUtilException(Constant.Base.EXCEPTION + ", see above errors.");
+                throw new AutoDexUtilException(Constants.Base.EXCEPTION + ", see above errors.");
             }
             // update cache
             for (int dexId : changedDexIdClassNameMap.keySet()) {
@@ -483,11 +483,11 @@ public final class AutoDexUtil {
             result.dexIdClassNameMap = dexIdClassNameMap;
             logger.info("Caculate total cost:" + (System.currentTimeMillis() - innerBegin));
             try {
-                String splitAndDxTempDirectory = outputDirectory + Constant.Symbol.SLASH_LEFT + "temp";
+                String splitAndDxTempDirectory = outputDirectory + Constants.Symbol.SLASH_LEFT + "temp";
                 final Map<Integer, List<String>> subDexListMap = splitAndDx(cache.classNameByteArrayMap, splitAndDxTempDirectory, dexIdClassNameMap, option.debug);
                 mergeDex(subDexListMap, outputDirectory, splitAndDxTempDirectory);
             } catch (Exception e) {
-                throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
+                throw new AutoDexUtilException(Constants.Base.EXCEPTION, e);
             }
         }
         try {
@@ -736,15 +736,15 @@ public final class AutoDexUtil {
                             OutputStream classNameTxtOutputStream = null;
                             OutputStream jarSubDexNameTxtOutputStream = null;
                             try {
-                                classNameTxt = parentOutputDirectory + "/" + dexId + Constant.Symbol.DOT + Constant.File.TXT;
-                                jarSubDexNameTxt = outputDirectory + "/" + dexId + Constant.File.JAR + Constant.Symbol.DOT + Constant.File.TXT;
+                                classNameTxt = parentOutputDirectory + "/" + dexId + Constants.Symbol.DOT + Constants.File.TXT;
+                                jarSubDexNameTxt = outputDirectory + "/" + dexId + Constants.File.JAR + Constants.Symbol.DOT + Constants.File.TXT;
                                 FileUtil.createFile(classNameTxt);
                                 FileUtil.createFile(jarSubDexNameTxt);
                                 Properties classNameProperties = new Properties();
                                 Properties jarSubDexNameProperties = new Properties();
                                 for (String className : classNameSet) {
                                     if (count % fileCountPerJar == 0) {
-                                        classesJar = outputDirectory + "/" + AUTO_DEX_DEX_CLASSES_PREFIX + dexId + Constant.Symbol.UNDERLINE + subDexCount + Constant.Symbol.DOT + Constant.File.JAR;
+                                        classesJar = outputDirectory + "/" + AUTO_DEX_DEX_CLASSES_PREFIX + dexId + Constants.Symbol.UNDERLINE + subDexCount + Constants.Symbol.DOT + Constants.File.JAR;
                                         classesJar = new File(classesJar).getAbsolutePath();
                                         FileUtil.createFile(classesJar);
                                         dexJarOutputStream = new ZipOutputStream(new FileOutputStream(classesJar));
@@ -760,7 +760,7 @@ public final class AutoDexUtil {
                                             dexJarOutputStream.flush();
                                             dexJarOutputStream.close();
                                         }
-                                        String classesDex = outputDirectory + "/" + AUTO_DEX_DEX_CLASSES_PREFIX + dexId + Constant.Symbol.UNDERLINE + subDexCount + Constant.Symbol.DOT + Constant.File.DEX;
+                                        String classesDex = outputDirectory + "/" + AUTO_DEX_DEX_CLASSES_PREFIX + dexId + Constants.Symbol.UNDERLINE + subDexCount + Constants.Symbol.DOT + Constants.File.DEX;
                                         classesDex = new File(classesDex).getAbsolutePath();
                                         if (classesJar != null) {
                                             long dxBegin = System.currentTimeMillis();
@@ -845,9 +845,9 @@ public final class AutoDexUtil {
                 String dexOutputDirectory = outputDirectory;
                 String dexFullFilename = null;
                 if (dexId == 0) {
-                    dexFullFilename = dexOutputDirectory + "/" + CLASSES + Constant.Symbol.DOT + DEX;
+                    dexFullFilename = dexOutputDirectory + "/" + CLASSES + Constants.Symbol.DOT + DEX;
                 } else {
-                    dexFullFilename = dexOutputDirectory + "/" + CLASSES + (dexId + 1) + Constant.Symbol.DOT + DEX;
+                    dexFullFilename = dexOutputDirectory + "/" + CLASSES + (dexId + 1) + Constants.Symbol.DOT + DEX;
                 }
                 final String finalDexFullFilename = dexFullFilename;
                 Thread thread = new Thread(new Runnable() {
@@ -856,7 +856,7 @@ public final class AutoDexUtil {
                             DexUtil.androidMergeDex(finalDexFullFilename, subDexListMap.get(dexId));
                         } catch (Exception e) {
                             exceptionDexIdList.add(dexId);
-                            logger.error(Constant.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
+                            logger.error(Constants.Base.EXCEPTION + ",dexId:" + dexId + "," + e.getMessage(), e);
                         }
                         countDownLatch.countDown();
                     }
@@ -865,12 +865,12 @@ public final class AutoDexUtil {
             }
             countDownLatch.await();
         } catch (Exception e) {
-            throw new AutoDexUtilException(Constant.Base.EXCEPTION, e);
+            throw new AutoDexUtilException(Constants.Base.EXCEPTION, e);
         }
         logger.info("Merge dex cost:" + (System.currentTimeMillis() - innerBegin));
         FileUtil.deleteAllFile(splitAndDxTempDirectory);
         if (!exceptionDexIdList.isEmpty()) {
-            throw new AutoDexUtilException(Constant.Base.EXCEPTION + ", see above errors.");
+            throw new AutoDexUtilException(Constants.Base.EXCEPTION + ", see above errors.");
         }
     }
 
@@ -885,7 +885,7 @@ public final class AutoDexUtil {
         if (classDescriptionMap != null) {
             Set<String> classNameSet = classDescriptionMap.keySet();
             for (String className : classNameSet) {
-                String packageName = className.substring(0, className.lastIndexOf(Constant.Symbol.SLASH_LEFT));
+                String packageName = className.substring(0, className.lastIndexOf(Constants.Symbol.SLASH_LEFT));
                 List<String> classNameList = null;
                 if (samePackageClassNameListMap.containsKey(packageName)) {
                     classNameList = samePackageClassNameListMap.get(packageName);
@@ -910,7 +910,7 @@ public final class AutoDexUtil {
         Map<String, String> classNameMap = new HashMap<String, String>();
         if (rootClassNameSet != null && samePackageClassNameListMap != null) {
             for (String rootClassName : rootClassNameSet) {
-                String packageName = rootClassName.substring(0, rootClassName.lastIndexOf(Constant.Symbol.SLASH_LEFT));
+                String packageName = rootClassName.substring(0, rootClassName.lastIndexOf(Constants.Symbol.SLASH_LEFT));
                 List<String> samePackageClassNameList = samePackageClassNameListMap.get(packageName);
                 if (samePackageClassNameList != null) {
                     for (String className : samePackageClassNameList) {
@@ -991,7 +991,7 @@ public final class AutoDexUtil {
             for (String combinedClassFullFilename : combinedClassList) {
                 File combinedClassFile = new File(combinedClassFullFilename);
                 combinedClassFullFilename = combinedClassFile.getAbsolutePath();
-                if (combinedClassFile.isFile() && combinedClassFile.getName().endsWith(Constant.Symbol.DOT + Constant.File.JAR)) {
+                if (combinedClassFile.isFile() && combinedClassFile.getName().endsWith(Constants.Symbol.DOT + Constants.File.JAR)) {
                     logger.debug("Reading jar combined class:" + combinedClassFullFilename);
                     ZipFile zipFile = null;
                     try {
@@ -1000,7 +1000,7 @@ public final class AutoDexUtil {
                         while (enumeration.hasMoreElements()) {
                             ZipEntry zipEntry = enumeration.nextElement();
                             String zipEntryName = zipEntry.getName();
-                            if (zipEntryName.endsWith(Constant.Symbol.DOT + Constant.File.CLASS)) {
+                            if (zipEntryName.endsWith(Constants.Symbol.DOT + Constants.File.CLASS)) {
                                 InputStream inputStream = null;
                                 try {
                                     int cacheType = CACHE_TYPE_DEFAULT;
@@ -1068,7 +1068,7 @@ public final class AutoDexUtil {
                     logger.debug("Reading directory combined class:" + combinedClassFullFilename);
                     String combiledClassRootPath = combinedClassFile.getAbsolutePath();
                     FileUtil.MatchOption matchOption = new FileUtil.MatchOption(combiledClassRootPath);
-                    matchOption.fileSuffix = Constant.Symbol.DOT + Constant.File.CLASS;
+                    matchOption.fileSuffix = Constants.Symbol.DOT + Constants.File.CLASS;
                     List<String> allClassFullFilenameList = FileUtil.findMatchFile(matchOption);
                     logger.debug("Find class size:" + allClassFullFilenameList.size());
                     if (allClassFullFilenameList != null) {
@@ -1076,7 +1076,7 @@ public final class AutoDexUtil {
                         for (String classFullFilename : allClassFullFilenameList) {
                             classFullFilename = new File(classFullFilename).getAbsolutePath();
                             String relativeClassFilename = classFullFilename.substring(combiledClassRootPath.length() + 1);
-                            relativeClassFilename = relativeClassFilename.replace(Constant.Symbol.SLASH_RIGHT, Constant.Symbol.SLASH_LEFT);
+                            relativeClassFilename = relativeClassFilename.replace(Constants.Symbol.SLASH_RIGHT, Constants.Symbol.SLASH_LEFT);
                             int cacheType = CACHE_TYPE_DEFAULT;
                             if (oldCache != null) {
                                 if (oldCache.classNameByteArrayMD5Map.containsKey(relativeClassFilename)) {
@@ -1193,15 +1193,15 @@ public final class AutoDexUtil {
             for (String className : classNameList) {
                 className = className.trim();
                 if (StringUtil.isNotBlank(className)) {
-                    if (className.startsWith(Constant.Symbol.DOT)) {
+                    if (className.startsWith(Constants.Symbol.DOT)) {
                         className = packageName + className;
                     }
-                    className = className.replace(Constant.Symbol.DOT, Constant.Symbol.SLASH_LEFT);
-                    if (className.indexOf(Constant.Symbol.WILDCARD) > -1 || className.indexOf(Constant.Symbol.WILDCARD + Constant.Symbol.WILDCARD) > -1) {
-                        String regex = Constant.Symbol.XOR + className.replace(Constant.Symbol.WILDCARD + Constant.Symbol.WILDCARD, "[\\S]+").replace(Constant.Symbol.WILDCARD, "[^/\\s]+") + Constant.Symbol.DOT + Constant.File.CLASS + Constant.Symbol.DOLLAR;
+                    className = className.replace(Constants.Symbol.DOT, Constants.Symbol.SLASH_LEFT);
+                    if (className.indexOf(Constants.Symbol.WILDCARD) > -1 || className.indexOf(Constants.Symbol.WILDCARD + Constants.Symbol.WILDCARD) > -1) {
+                        String regex = Constants.Symbol.XOR + className.replace(Constants.Symbol.WILDCARD + Constants.Symbol.WILDCARD, "[\\S]+").replace(Constants.Symbol.WILDCARD, "[^/\\s]+") + Constants.Symbol.DOT + Constants.File.CLASS + Constants.Symbol.DOLLAR;
                         regexList.add(regex);
                     } else {
-                        className = className + Constant.Symbol.DOT + Constant.File.CLASS;
+                        className = className + Constants.Symbol.DOT + Constants.File.CLASS;
                         if (classNameMap != null && classNameMap.containsKey(className)) {
                             className = classNameMap.get(className);
                         }
@@ -1282,7 +1282,7 @@ public final class AutoDexUtil {
         }
         if (classDescription.isAnnotationClass()) {
             for (String dependClassName : classDescription.dependClassNameMap.keySet()) {
-                dependClassName = dependClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+                dependClassName = dependClassName + Constants.Symbol.DOT + Constants.File.CLASS;
                 if (!allClassNameMap.containsKey(dependClassName)) {
                     continue;
                 }
@@ -1294,7 +1294,7 @@ public final class AutoDexUtil {
                     continue;
                 }
                 String referencedClassName = referencedClassDescription.className;
-                referencedClassName = referencedClassName + Constant.Symbol.DOT + Constant.File.CLASS;
+                referencedClassName = referencedClassName + Constants.Symbol.DOT + Constants.File.CLASS;
                 if (!allClassNameMap.containsKey(referencedClassName)) {
                     continue;
                 }

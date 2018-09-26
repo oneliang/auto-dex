@@ -8,7 +8,7 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.TreeMap;
 
-import com.oneliang.Constant;
+import com.oneliang.Constants;
 import com.oneliang.util.common.StringUtil;
 import com.oneliang.util.file.FileUtil;
 
@@ -19,7 +19,7 @@ public class TestCountPackageClass {
         if (StringUtil.isBlank(className)) {
             return;
         }
-        int lastIndex = className.lastIndexOf(Constant.Symbol.SLASH_LEFT);
+        int lastIndex = className.lastIndexOf(Constants.Symbol.SLASH_LEFT);
         if (lastIndex > 0) {
             while (lastIndex > 0) {
                 String packageName = className.substring(0, lastIndex);
@@ -28,7 +28,7 @@ public class TestCountPackageClass {
                 } else {
                     map.put(packageName, new Counter());
                 }
-                lastIndex = packageName.lastIndexOf(Constant.Symbol.SLASH_LEFT);
+                lastIndex = packageName.lastIndexOf(Constants.Symbol.SLASH_LEFT);
             }
         } else {
             final String defaultPackageName = "default package";
